@@ -6,3 +6,6 @@ dist/
 .env
 .env.*
 mcp/dist/
+*.tsbuildinfo
+vite.config.d.ts
+vite.config.js
