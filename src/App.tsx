@@ -19,9 +19,11 @@ export function App() {
   const [tab, setTab] = useState<Tab>(getTabFromHash);
   const [jobs, setJobs] = useState<GenerationJob[]>([]);
   const [explorePrompt, setExplorePrompt] = useState<string | null>(null);
+  const [exploreModel, setExploreModel] = useState<string | null>(null);
 
-  const sendToExplore = (prompt: string) => {
+  const sendToExplore = (prompt: string, model?: string) => {
     setExplorePrompt(prompt);
+    if (model) setExploreModel(model);
     setTab("explore");
   };
 
@@ -72,7 +74,7 @@ export function App() {
         </div>
       </div>
 
-      {tab === "explore" && <Explorer onJobCreated={(j) => addJobs([j])} initialPrompt={explorePrompt} onPromptConsumed={() => setExplorePrompt(null)} />}
+      {tab === "explore" && <Explorer onJobCreated={(j) => addJobs([j])} initialPrompt={explorePrompt} initialModel={exploreModel} onPromptConsumed={() => { setExplorePrompt(null); setExploreModel(null); }} />}
       {tab === "projects" && <Projects onSendToExplore={sendToExplore} />}
       {tab === "batch" && <BatchEditor onJobsCreated={addJobs} />}
       {tab === "review" && <Review jobs={jobs} onUpdateJob={updateJob} onDeleteJob={deleteJob} />}

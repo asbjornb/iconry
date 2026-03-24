@@ -6,6 +6,7 @@ import { ModelSelect } from "../components/ModelSelect";
 interface Props {
   onJobCreated: (job: GenerationJob) => void;
   initialPrompt?: string | null;
+  initialModel?: string | null;
   onPromptConsumed?: () => void;
 }
 
@@ -18,7 +19,7 @@ interface ExplorerResult {
   error?: string;
 }
 
-export function Explorer({ onJobCreated, initialPrompt, onPromptConsumed }: Props) {
+export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptConsumed }: Props) {
   const [prompt, setPrompt] = useState(
     "minimal flat icon, game asset, tropical island theme, clean edges, transparent background, a coconut"
   );
@@ -31,6 +32,7 @@ export function Explorer({ onJobCreated, initialPrompt, onPromptConsumed }: Prop
   useEffect(() => {
     if (initialPrompt) {
       setPrompt(initialPrompt);
+      if (initialModel) setModel(initialModel);
       onPromptConsumed?.();
     }
   }, [initialPrompt]);

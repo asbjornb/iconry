@@ -10,7 +10,7 @@ import type { Project, ProjectRun } from "@shared/types";
 import { ModelSelect } from "../components/ModelSelect";
 
 interface ProjectsProps {
-  onSendToExplore: (prompt: string) => void;
+  onSendToExplore: (prompt: string, model?: string) => void;
 }
 
 export function Projects({ onSendToExplore }: ProjectsProps) {
@@ -328,7 +328,7 @@ export function Projects({ onSendToExplore }: ProjectsProps) {
   );
 }
 
-function RunCard({ run, onSendToExplore }: { run: ProjectRun; onSendToExplore: (prompt: string) => void }) {
+function RunCard({ run, onSendToExplore }: { run: ProjectRun; onSendToExplore: (prompt: string, model?: string) => void }) {
   const [expanded, setExpanded] = useState(true);
   const completed = run.results.filter((r) => r.status === "completed").length;
   const failed = run.results.filter((r) => r.status === "failed").length;
@@ -378,7 +378,7 @@ function RunCard({ run, onSendToExplore }: { run: ProjectRun; onSendToExplore: (
                 <div className="meta">
                   <span>{r.item}</span>
                   <div className="actions">
-                    <button onClick={() => onSendToExplore(r.prompt)}>explore</button>
+                    <button onClick={() => onSendToExplore(r.prompt, run.model)}>explore</button>
                   </div>
                 </div>
               </div>
