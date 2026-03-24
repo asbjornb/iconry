@@ -21,7 +21,7 @@ export function Projects() {
   const [preamble, setPreamble] = useState(
     "minimal flat icon, game asset, resource icon, tropical island theme, clean edges, transparent background"
   );
-  const [itemsText, setItemsText] = useState("a coconut");
+  const [itemsText, setItemsText] = useState("a coconut | large shell | bamboo");
   const [postfix, setPostfix] = useState(
     "nothing else, only the requested item"
   );
@@ -48,7 +48,7 @@ export function Projects() {
     setSelected(p);
     setName(p.name);
     setPreamble(p.preamble);
-    setItemsText(p.items.join(", "));
+    setItemsText(p.items.join(" | "));
     setPostfix(p.postfix);
     setModel(p.model);
     setSize(p.size);
@@ -68,7 +68,7 @@ export function Projects() {
 
   function parseItems(text: string): string[] {
     return text
-      .split(",")
+      .split("|")
       .map((s) => s.trim())
       .filter(Boolean);
   }
@@ -239,11 +239,11 @@ export function Projects() {
           </div>
 
           <div className="field">
-            <label>Items (comma-separated)</label>
+            <label>Items (separated by |)</label>
             <textarea
               value={itemsText}
               onChange={(e) => setItemsText(e.target.value)}
-              placeholder="a coconut, large shell, bamboo, bamboo basket trap"
+              placeholder="a coconut | large shell | bamboo | bamboo basket trap"
               style={{ minHeight: 40 }}
             />
           </div>
