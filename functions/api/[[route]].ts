@@ -199,6 +199,23 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     });
   }
 
+  // ── GET /api/image/:key — serve image from R2 (public, no auth) ──
+  if (path.startsWith("/api/image/") && request.method === "GET") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+
+    const key = decodeURIComponent(path.replace("/api/image/", ""));
+    const obj = await env.ASSETS_BUCKET.get(key);
+    if (!obj) return err("Not found", 404);
+
+    return new Response(obj.body, {
+      headers: {
+        "Content-Type": obj.httpMetadata?.contentType ?? "image/png",
+        "Cache-Control": "public, max-age=31536000",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  }
+
   // Auth check for all other API routes
   const authErr = checkAuth(request, env);
   if (authErr) return authErr;
@@ -308,23 +325,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     const response: BatchResponse = { packId, jobs };
     return json(response);
-  }
-
-  // ── GET /api/image/:key — serve image from R2 ───────────────────
-  if (path.startsWith("/api/image/") && request.method === "GET") {
-    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
-
-    const key = decodeURIComponent(path.replace("/api/image/", ""));
-    const obj = await env.ASSETS_BUCKET.get(key);
-    if (!obj) return err("Not found", 404);
-
-    return new Response(obj.body, {
-      headers: {
-        "Content-Type": obj.httpMetadata?.contentType ?? "image/png",
-        "Cache-Control": "public, max-age=31536000",
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
   }
 
   // ── DELETE /api/image/:key — delete image from R2 ──────────────
