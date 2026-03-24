@@ -140,6 +140,28 @@ export interface ProjectRunResult {
   error?: string;
 }
 
+// ── Saved Drawings ─────────────────────────────────────────────────
+
+export interface SavedDrawing {
+  id: string;
+  /** R2 key of the stored image */
+  imageKey: string;
+  /** Tags for organizing and filtering */
+  tags: string[];
+  /** Optional note about this drawing */
+  note: string;
+  /** The prompt used to generate this image */
+  prompt: string;
+  /** Model used for generation */
+  model: string;
+  /** Provider used */
+  provider: string;
+  /** Where this came from (e.g. "explorer", project name, pack name) */
+  source: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ── Example pack for the tropical island game ───────────────────────
 
 export const EXAMPLE_PACK: PackSpec = {

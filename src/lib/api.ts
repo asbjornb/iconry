@@ -1,4 +1,4 @@
-import type { GenerateRequest, GenerateResponse, BatchRequest, BatchResponse, GenerationJob, Project, ProjectRun } from "@shared/types";
+import type { GenerateRequest, GenerateResponse, BatchRequest, BatchResponse, GenerationJob, Project, ProjectRun, SavedDrawing } from "@shared/types";
 
 const BASE = import.meta.env.DEV ? "" : ""; // proxy in dev, same origin in prod
 
@@ -95,4 +95,37 @@ export async function deleteProject(id: string): Promise<void> {
 
 export async function runProject(id: string): Promise<ProjectRun> {
   return request<ProjectRun>(`/api/projects/${id}/run`, { method: "POST" });
+}
+
+// ── Saved Drawings ───────────────────────────────────────────────
+
+export async function listSaved(): Promise<SavedDrawing[]> {
+  const res = await request<{ drawings: SavedDrawing[] }>("/api/saved");
+  return res.drawings;
+}
+
+export async function saveDrawing(data: {
+  imageKey: string;
+  tags?: string[];
+  note?: string;
+  prompt: string;
+  model: string;
+  provider?: string;
+  source?: string;
+}): Promise<SavedDrawing> {
+  return request<SavedDrawing>("/api/saved", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateSaved(id: string, data: { tags?: string[]; note?: string }): Promise<SavedDrawing> {
+  return request<SavedDrawing>(`/api/saved/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function removeSaved(id: string): Promise<void> {
+  await request<{ ok: boolean }>(`/api/saved/${id}`, { method: "DELETE" });
 }

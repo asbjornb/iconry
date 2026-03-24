@@ -3,12 +3,13 @@ import { Explorer } from "./views/Explorer";
 import { BatchEditor } from "./views/BatchEditor";
 import { Projects } from "./views/Projects";
 import { Review } from "./views/Review";
+import { Saved } from "./views/Saved";
 import { Settings } from "./components/Settings";
 import { listJobs } from "./lib/api";
 import type { GenerationJob } from "@shared/types";
 
-type Tab = "explore" | "projects" | "batch" | "review" | "settings";
-const TABS: Tab[] = ["explore", "projects", "batch", "review", "settings"];
+type Tab = "explore" | "projects" | "batch" | "review" | "saved" | "settings";
+const TABS: Tab[] = ["explore", "projects", "batch", "review", "saved", "settings"];
 
 function getTabFromHash(): Tab {
   const hash = window.location.hash.slice(1);
@@ -78,6 +79,7 @@ export function App() {
       {tab === "projects" && <Projects onSendToExplore={sendToExplore} />}
       {tab === "batch" && <BatchEditor onJobsCreated={addJobs} />}
       {tab === "review" && <Review jobs={jobs} onUpdateJob={updateJob} onDeleteJob={deleteJob} />}
+      {tab === "saved" && <Saved onSendToExplore={sendToExplore} />}
       {tab === "settings" && <Settings />}
     </div>
   );

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { generateImage, pollPrediction, imageUrl, deleteImage } from "../lib/api";
+import { generateImage, pollPrediction, imageUrl, deleteImage, saveDrawing } from "../lib/api";
 import type { GenerateRequest, GenerationJob } from "@shared/types";
 import { ModelSelect } from "../components/ModelSelect";
 
@@ -13,10 +13,12 @@ interface Props {
 interface ExplorerResult {
   id: string;
   prompt: string;
+  model: string;
   status: "running" | "completed" | "failed";
   resultUrl?: string;
   storedKey?: string;
   error?: string;
+  saved?: boolean;
 }
 
 export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptConsumed }: Props) {
@@ -48,6 +50,7 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptCo
       const result: ExplorerResult = {
         id: res.id,
         prompt,
+        model,
         status: res.status === "completed" ? "completed" : res.status === "failed" ? "failed" : "running",
         resultUrl: res.resultUrl,
         storedKey: res.storedKey,
@@ -94,13 +97,31 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptCo
 
         if (res.status === "completed" || res.status === "failed") {
           if (res.status === "completed") {
-            const updated: ExplorerResult = { id, prompt, status: "completed", resultUrl: res.resultUrl, storedKey };
+            const updated: ExplorerResult = { id, prompt, model, status: "completed", resultUrl: res.resultUrl, storedKey };
             onJobCreated(resultToJob(updated));
           }
           return;
         }
       } catch {
         // Retry on network error
+      }
+    }
+  }
+
+  async function handleSave(r: ExplorerResult) {
+    if (!r.storedKey) return;
+    try {
+      await saveDrawing({
+        imageKey: r.storedKey,
+        prompt: r.prompt,
+        model: r.model,
+        source: "explorer",
+      });
+      setResults((prev) => prev.map((x) => (x.id === r.id ? { ...x, saved: true } : x)));
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg.includes("already saved")) {
+        setResults((prev) => prev.map((x) => (x.id === r.id ? { ...x, saved: true } : x)));
       }
     }
   }
@@ -181,6 +202,15 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptCo
               <div className="meta">
                 <span>{r.prompt.slice(0, 40)}...</span>
                 <div className="actions">
+                  {r.status === "completed" && r.storedKey && (
+                    <button
+                      onClick={() => handleSave(r)}
+                      disabled={r.saved}
+                      style={r.saved ? { color: "var(--success)", borderColor: "var(--success)" } : {}}
+                    >
+                      {r.saved ? "saved" : "save"}
+                    </button>
+                  )}
                   {r.resultUrl && (
                     <button onClick={() => window.open(r.resultUrl, "_blank")}>open</button>
                   )}
