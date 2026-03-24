@@ -230,7 +230,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     let cursor: string | undefined;
 
     do {
-      const listed = await env.ASSETS_BUCKET.list({ cursor, limit: 500 });
+      const listed = await env.ASSETS_BUCKET.list({ cursor, limit: 500, include: ["customMetadata", "httpMetadata"] });
       for (const obj of listed.objects) {
         const m = obj.customMetadata ?? {};
         if (!m.prompt) continue; // skip objects without job metadata
