@@ -183,7 +183,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     return new Response(null, {
       headers: {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type, Authorization",
       },
     });
@@ -325,6 +325,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         "Access-Control-Allow-Origin": "*",
       },
     });
+  }
+
+  // ── DELETE /api/image/:key — delete image from R2 ──────────────
+  if (path.startsWith("/api/image/") && request.method === "DELETE") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+
+    const key = decodeURIComponent(path.replace("/api/image/", ""));
+    await env.ASSETS_BUCKET.delete(key);
+    return json({ ok: true, key });
   }
 
   return err("Not found", 404);

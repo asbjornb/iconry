@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { generateImage, pollPrediction } from "../lib/api";
+import { generateImage, pollPrediction, imageUrl, deleteImage } from "../lib/api";
 import type { GenerationJob, GenerateRequest } from "@shared/types";
 
 interface Props {
   jobs: GenerationJob[];
   onUpdateJob: (id: string, updates: Partial<GenerationJob>) => void;
+  onDeleteJob: (id: string) => void;
 }
 
-export function Review({ jobs, onUpdateJob }: Props) {
+export function Review({ jobs, onUpdateJob, onDeleteJob }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "completed" | "failed">("all");
 
@@ -63,6 +64,18 @@ export function Review({ jobs, onUpdateJob }: Props) {
     }
   }
 
+  async function handleDelete(job: GenerationJob) {
+    if (job.storedKey) {
+      try {
+        await deleteImage(job.storedKey);
+      } catch {
+        // Image may already be gone from R2, still remove from UI
+      }
+    }
+    if (selected === job.id) setSelected(null);
+    onDeleteJob(job.id);
+  }
+
   function downloadAll() {
     const completed = jobs.filter((j) => j.status === "completed" && j.resultUrl);
     completed.forEach((j) => {
@@ -113,8 +126,8 @@ export function Review({ jobs, onUpdateJob }: Props) {
             className={`review-card ${selected === j.id ? "selected" : ""}`}
             onClick={() => setSelected(j.id)}
           >
-            {j.status === "completed" && j.resultUrl ? (
-              <img src={j.resultUrl} alt={j.iconName} />
+            {j.status === "completed" && (j.storedKey || j.resultUrl) ? (
+              <img src={j.storedKey ? imageUrl(j.storedKey) : j.resultUrl!} alt={j.iconName} />
             ) : (
               <div style={{ aspectRatio: "1", display: "grid", placeItems: "center" }}>
                 <span className={`status-badge ${j.status}`}>{j.status}</span>
@@ -137,11 +150,21 @@ export function Review({ jobs, onUpdateJob }: Props) {
           <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 12 }}>
             {selectedJob.provider} / {selectedJob.model}
           </div>
+          {selectedJob.status === "completed" && (selectedJob.storedKey || selectedJob.resultUrl) && (
+            <div style={{ marginBottom: 12 }}>
+              <img
+                src={selectedJob.storedKey ? imageUrl(selectedJob.storedKey) : selectedJob.resultUrl!}
+                alt={selectedJob.iconName}
+                style={{ maxWidth: 400, width: "100%", borderRadius: "var(--radius)", background: "repeating-conic-gradient(#222 0% 25%, #1a1a1a 0% 50%) 50% / 16px 16px" }}
+              />
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => handleReroll(selectedJob)}>Reroll</button>
             {selectedJob.resultUrl && (
               <button onClick={() => window.open(selectedJob.resultUrl, "_blank")}>Open Full</button>
             )}
+            <button className="danger" onClick={() => handleDelete(selectedJob)}>Delete</button>
           </div>
           {selectedJob.error && <div className="error-msg" style={{ marginTop: 8 }}>{selectedJob.error}</div>}
         </div>

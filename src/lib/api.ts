@@ -58,3 +58,9 @@ export async function testReplicate() {
 export function imageUrl(key: string): string {
   return `${BASE}/api/image/${encodeURIComponent(key)}`;
 }
+
+export async function deleteImage(key: string): Promise<void> {
+  await request<{ ok: boolean }>(`/api/image/${encodeURIComponent(key)}`, {
+    method: "DELETE",
+  });
+}
