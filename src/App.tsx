@@ -8,10 +8,27 @@ import { listJobs } from "./lib/api";
 import type { GenerationJob } from "@shared/types";
 
 type Tab = "explore" | "projects" | "batch" | "review" | "settings";
+const TABS: Tab[] = ["explore", "projects", "batch", "review", "settings"];
+
+function getTabFromHash(): Tab {
+  const hash = window.location.hash.slice(1);
+  return TABS.includes(hash as Tab) ? (hash as Tab) : "explore";
+}
 
 export function App() {
-  const [tab, setTab] = useState<Tab>("explore");
+  const [tab, setTab] = useState<Tab>(getTabFromHash);
   const [jobs, setJobs] = useState<GenerationJob[]>([]);
+
+  // Sync tab ↔ URL hash
+  useEffect(() => {
+    window.location.hash = tab;
+  }, [tab]);
+
+  useEffect(() => {
+    const onHashChange = () => setTab(getTabFromHash());
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   useEffect(() => {
     listJobs()
@@ -41,7 +58,7 @@ export function App() {
       <div className="header">
         <h1>iconry</h1>
         <div className="tabs">
-          {(["explore", "projects", "batch", "review", "settings"] as const).map((t) => (
+          {TABS.map((t) => (
             <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
               {t}
             </button>
