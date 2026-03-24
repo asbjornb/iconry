@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { checkHealth, setAuthToken, getAuthToken } from "../lib/api";
+import { checkHealth, testReplicate, setAuthToken, getAuthToken } from "../lib/api";
 
 export function Settings() {
   const [token, setToken] = useState(getAuthToken());
@@ -10,6 +10,12 @@ export function Settings() {
     auth: boolean;
   } | null>(null);
   const [error, setError] = useState("");
+  const [replicateStatus, setReplicateStatus] = useState<{
+    ok: boolean;
+    username?: string;
+    error?: string;
+  } | null>(null);
+  const [testingReplicate, setTestingReplicate] = useState(false);
 
   useEffect(() => {
     checkHealth()
@@ -67,12 +73,47 @@ export function Settings() {
                 {health.r2 ? "configured" : "not configured"}
               </span>
             </div>
-            <div>
-              Replicate:{" "}
-              <span className={`status-badge ${health.replicate ? "completed" : "pending"}`}>
-                {health.replicate ? "key set" : "no key"}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span>
+                Replicate:{" "}
+                <span className={`status-badge ${health.replicate ? "completed" : "pending"}`}>
+                  {health.replicate ? "key set" : "no key"}
+                </span>
               </span>
+              {health.replicate && (
+                <button
+                  style={{ fontSize: 12, padding: "2px 8px" }}
+                  disabled={testingReplicate}
+                  onClick={async () => {
+                    setTestingReplicate(true);
+                    setReplicateStatus(null);
+                    try {
+                      const result = await testReplicate();
+                      setReplicateStatus(result);
+                    } catch (e) {
+                      setReplicateStatus({ ok: false, error: (e as Error).message });
+                    } finally {
+                      setTestingReplicate(false);
+                    }
+                  }}
+                >
+                  {testingReplicate ? "testing..." : "Test Connection"}
+                </button>
+              )}
             </div>
+            {replicateStatus && (
+              <div style={{ marginLeft: 8 }}>
+                {replicateStatus.ok ? (
+                  <span className="status-badge completed">
+                    valid (account: {replicateStatus.username})
+                  </span>
+                ) : (
+                  <span className="status-badge failed">
+                    invalid: {replicateStatus.error}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
