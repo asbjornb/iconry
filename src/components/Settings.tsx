@@ -78,8 +78,7 @@ export function Settings() {
       )}
 
       <div style={{ marginTop: 24, fontSize: 12, color: "var(--text-dim)" }}>
-        <p>Set API key on the worker: <code>wrangler secret put REPLICATE_API_TOKEN</code></p>
-        <p style={{ marginTop: 4 }}>Set auth: <code>wrangler secret put AUTH_SECRET</code></p>
+        <p>Set secrets in Cloudflare Dashboard → Pages → iconry → Settings → Environment Variables</p>
       </div>
     </div>
   );
