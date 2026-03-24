@@ -295,8 +295,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       };
       const stored = await storeImage(env, key, result.resultUrl, meta);
       if (stored) {
-        (result as GenerateResponse & { storedKey?: string }).storedKey =
-          stored;
+        result.storedKey = stored;
       }
     }
 
@@ -322,8 +321,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       };
       const stored = await storeImage(env, key, result.resultUrl, meta);
       if (stored) {
-        (result as GenerateResponse & { storedKey?: string }).storedKey =
-          stored;
+        result.storedKey = stored;
       }
     }
 

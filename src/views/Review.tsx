@@ -35,6 +35,7 @@ export function Review({ jobs, onUpdateJob, onDeleteJob }: Props) {
         onUpdateJob(job.id, {
           status: "completed",
           resultUrl: res.resultUrl,
+          storedKey: res.storedKey,
           updatedAt: new Date().toISOString(),
         });
       } else if (res.status === "failed") {
@@ -44,11 +45,12 @@ export function Review({ jobs, onUpdateJob, onDeleteJob }: Props) {
         const maxAttempts = 60;
         for (let i = 0; i < maxAttempts; i++) {
           await new Promise((r) => setTimeout(r, 2000));
-          const poll = await pollPrediction(res.id);
+          const poll = await pollPrediction(res.id, { prompt: job.prompt, model: job.model });
           if (poll.status === "completed") {
             onUpdateJob(job.id, {
               status: "completed",
               resultUrl: poll.resultUrl,
+              storedKey: poll.storedKey,
               updatedAt: new Date().toISOString(),
             });
             return;

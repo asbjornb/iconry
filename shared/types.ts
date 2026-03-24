@@ -86,6 +86,7 @@ export interface GenerateResponse {
   id: string;
   status: JobStatus;
   resultUrl?: string;
+  storedKey?: string;
   error?: string;
 }
 

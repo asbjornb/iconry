@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { generateImage, pollPrediction, imageUrl, deleteImage } from "../lib/api";
-import type { GenerateRequest, GenerateResponse, GenerationJob } from "@shared/types";
+import type { GenerateRequest, GenerationJob } from "@shared/types";
 
 interface Props {
   onJobCreated: (job: GenerationJob) => void;
@@ -33,13 +33,12 @@ export function Explorer({ onJobCreated }: Props) {
       const req: GenerateRequest = { prompt, provider: "replicate", model, size };
       const res = await generateImage(req);
 
-      const resAny = res as GenerateResponse & { storedKey?: string };
       const result: ExplorerResult = {
         id: res.id,
         prompt,
         status: res.status === "completed" ? "completed" : res.status === "failed" ? "failed" : "running",
         resultUrl: res.resultUrl,
-        storedKey: resAny.storedKey,
+        storedKey: res.storedKey,
         error: res.error,
       };
 
@@ -66,7 +65,7 @@ export function Explorer({ onJobCreated }: Props) {
       await new Promise((r) => setTimeout(r, 2000));
       try {
         const res = await pollPrediction(id, { prompt, model });
-        const pollAny = res as GenerateResponse & { storedKey?: string };
+        const storedKey = res.storedKey;
         setResults((prev) =>
           prev.map((r) =>
             r.id === id
@@ -74,7 +73,7 @@ export function Explorer({ onJobCreated }: Props) {
                   ...r,
                   status: res.status === "completed" ? "completed" : res.status === "failed" ? "failed" : "running",
                   resultUrl: res.resultUrl,
-                  storedKey: pollAny.storedKey ?? r.storedKey,
+                  storedKey: storedKey ?? r.storedKey,
                   error: res.error,
                 }
               : r
@@ -83,7 +82,7 @@ export function Explorer({ onJobCreated }: Props) {
 
         if (res.status === "completed" || res.status === "failed") {
           if (res.status === "completed") {
-            const updated = { id, prompt, status: "completed" as const, resultUrl: res.resultUrl };
+            const updated: ExplorerResult = { id, prompt, status: "completed", resultUrl: res.resultUrl, storedKey };
             onJobCreated(resultToJob(updated));
           }
           return;
