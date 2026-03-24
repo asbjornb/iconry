@@ -9,7 +9,11 @@ import {
 import type { Project, ProjectRun } from "@shared/types";
 import { ModelSelect } from "../components/ModelSelect";
 
-export function Projects() {
+interface ProjectsProps {
+  onSendToExplore: (prompt: string) => void;
+}
+
+export function Projects({ onSendToExplore }: ProjectsProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selected, setSelected] = useState<Project | null>(null);
   const [loading, setLoading] = useState(false);
@@ -316,7 +320,7 @@ export function Projects() {
         <div className="project-runs">
           <h3>Run History</h3>
           {[...selected.runs].reverse().map((run) => (
-            <RunCard key={run.id} run={run} />
+            <RunCard key={run.id} run={run} onSendToExplore={onSendToExplore} />
           ))}
         </div>
       )}
@@ -324,7 +328,7 @@ export function Projects() {
   );
 }
 
-function RunCard({ run }: { run: ProjectRun }) {
+function RunCard({ run, onSendToExplore }: { run: ProjectRun; onSendToExplore: (prompt: string) => void }) {
   const [expanded, setExpanded] = useState(true);
   const completed = run.results.filter((r) => r.status === "completed").length;
   const failed = run.results.filter((r) => r.status === "failed").length;
@@ -373,6 +377,9 @@ function RunCard({ run }: { run: ProjectRun }) {
                 )}
                 <div className="meta">
                   <span>{r.item}</span>
+                  <div className="actions">
+                    <button onClick={() => onSendToExplore(r.prompt)}>explore</button>
+                  </div>
                 </div>
               </div>
             ))}
