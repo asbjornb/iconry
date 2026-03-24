@@ -1,4 +1,4 @@
-import type { GenerateRequest, GenerateResponse, BatchRequest, BatchResponse, GenerationJob } from "@shared/types";
+import type { GenerateRequest, GenerateResponse, BatchRequest, BatchResponse, GenerationJob, Project, ProjectRun } from "@shared/types";
 
 const BASE = import.meta.env.DEV ? "" : ""; // proxy in dev, same origin in prod
 
@@ -69,4 +69,30 @@ export async function deleteImage(key: string): Promise<void> {
   await request<{ ok: boolean }>(`/api/image/${encodeURIComponent(key)}`, {
     method: "DELETE",
   });
+}
+
+// ── Projects ──────────────────────────────────────────────────────
+
+export async function listProjects(): Promise<Project[]> {
+  const res = await request<{ projects: Project[] }>("/api/projects");
+  return res.projects;
+}
+
+export async function getProject(id: string): Promise<Project> {
+  return request<Project>(`/api/projects/${id}`);
+}
+
+export async function saveProject(project: Project): Promise<Project> {
+  return request<Project>(`/api/projects/${project.id}`, {
+    method: "PUT",
+    body: JSON.stringify(project),
+  });
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  await request<{ ok: boolean }>(`/api/projects/${id}`, { method: "DELETE" });
+}
+
+export async function runProject(id: string): Promise<ProjectRun> {
+  return request<ProjectRun>(`/api/projects/${id}/run`, { method: "POST" });
 }

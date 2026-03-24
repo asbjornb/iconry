@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { Explorer } from "./views/Explorer";
 import { BatchEditor } from "./views/BatchEditor";
+import { Projects } from "./views/Projects";
 import { Review } from "./views/Review";
 import { Settings } from "./components/Settings";
 import { listJobs } from "./lib/api";
 import type { GenerationJob } from "@shared/types";
 
-type Tab = "explore" | "batch" | "review" | "settings";
+type Tab = "explore" | "projects" | "batch" | "review" | "settings";
 
 export function App() {
   const [tab, setTab] = useState<Tab>("explore");
@@ -40,7 +41,7 @@ export function App() {
       <div className="header">
         <h1>iconry</h1>
         <div className="tabs">
-          {(["explore", "batch", "review", "settings"] as const).map((t) => (
+          {(["explore", "projects", "batch", "review", "settings"] as const).map((t) => (
             <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
               {t}
             </button>
@@ -49,6 +50,7 @@ export function App() {
       </div>
 
       {tab === "explore" && <Explorer onJobCreated={(j) => addJobs([j])} />}
+      {tab === "projects" && <Projects />}
       {tab === "batch" && <BatchEditor onJobsCreated={addJobs} />}
       {tab === "review" && <Review jobs={jobs} onUpdateJob={updateJob} onDeleteJob={deleteJob} />}
       {tab === "settings" && <Settings />}
