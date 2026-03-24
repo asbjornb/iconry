@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { generateImage, pollPrediction, imageUrl, deleteImage } from "../lib/api";
 import type { GenerateRequest, GenerationJob } from "@shared/types";
+import { ModelSelect } from "../components/ModelSelect";
 
 interface Props {
   onJobCreated: (job: GenerationJob) => void;
@@ -128,7 +129,7 @@ export function Explorer({ onJobCreated }: Props) {
         <div className="settings-row">
           <div className="field">
             <label>Model</label>
-            <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="model id" />
+            <ModelSelect value={model} onChange={setModel} />
           </div>
           <div className="field">
             <label>Size</label>

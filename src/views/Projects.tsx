@@ -7,6 +7,7 @@ import {
   imageUrl,
 } from "../lib/api";
 import type { Project, ProjectRun } from "@shared/types";
+import { ModelSelect } from "../components/ModelSelect";
 
 export function Projects() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -261,10 +262,7 @@ export function Projects() {
           <div className="settings-row">
             <div className="field">
               <label>Model</label>
-              <input
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-              />
+              <ModelSelect value={model} onChange={setModel} />
             </div>
             <div className="field">
               <label>Size</label>

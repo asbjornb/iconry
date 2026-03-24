@@ -433,6 +433,44 @@ input:focus, textarea:focus, select:focus {
   border-top: 1px solid var(--border);
 }
 
+/* Model selector */
+.model-select {
+  display: grid;
+  gap: 4px;
+}
+
+.model-select select {
+  width: 100%;
+}
+
+.model-custom-input {
+  margin-top: 4px;
+}
+
+.model-description {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.model-tags {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.model-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  background: var(--border);
+  color: var(--text-dim);
+}
+
 @media (max-width: 700px) {
   .project-layout {
     grid-template-columns: 1fr;
