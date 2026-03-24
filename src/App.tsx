@@ -19,6 +19,10 @@ export function App() {
     setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, ...updates } : j)));
   };
 
+  const deleteJob = (id: string) => {
+    setJobs((prev) => prev.filter((j) => j.id !== id));
+  };
+
   return (
     <div className="app">
       <div className="header">
@@ -34,7 +38,7 @@ export function App() {
 
       {tab === "explore" && <Explorer onJobCreated={(j) => addJobs([j])} />}
       {tab === "batch" && <BatchEditor onJobsCreated={addJobs} />}
-      {tab === "review" && <Review jobs={jobs} onUpdateJob={updateJob} />}
+      {tab === "review" && <Review jobs={jobs} onUpdateJob={updateJob} onDeleteJob={deleteJob} />}
       {tab === "settings" && <Settings />}
     </div>
   );

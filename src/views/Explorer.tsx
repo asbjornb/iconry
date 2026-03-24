@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { generateImage, pollPrediction, imageUrl } from "../lib/api";
+import { generateImage, pollPrediction, imageUrl, deleteImage } from "../lib/api";
 import type { GenerateRequest, GenerateResponse, GenerationJob } from "@shared/types";
 
 interface Props {
@@ -94,6 +94,17 @@ export function Explorer({ onJobCreated }: Props) {
     }
   }
 
+  async function handleDeleteResult(r: ExplorerResult) {
+    if (r.storedKey) {
+      try {
+        await deleteImage(r.storedKey);
+      } catch {
+        // Image may already be gone
+      }
+    }
+    setResults((prev) => prev.filter((x) => x.id !== r.id));
+  }
+
   function resultToJob(r: ExplorerResult): GenerationJob {
     const now = new Date().toISOString();
     return {
@@ -163,6 +174,7 @@ export function Explorer({ onJobCreated }: Props) {
                     <button onClick={() => window.open(r.resultUrl, "_blank")}>open</button>
                   )}
                   <button onClick={() => setPrompt(r.prompt)}>reuse</button>
+                  <button className="danger" onClick={() => handleDeleteResult(r)}>del</button>
                 </div>
               </div>
             </div>
