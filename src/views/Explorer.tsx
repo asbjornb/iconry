@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { generateImage, pollPrediction } from "../lib/api";
-import type { GenerateRequest, GenerationJob } from "@shared/types";
+import { generateImage, pollPrediction, imageUrl } from "../lib/api";
+import type { GenerateRequest, GenerateResponse, GenerationJob } from "@shared/types";
 
 interface Props {
   onJobCreated: (job: GenerationJob) => void;
@@ -11,6 +11,7 @@ interface ExplorerResult {
   prompt: string;
   status: "running" | "completed" | "failed";
   resultUrl?: string;
+  storedKey?: string;
   error?: string;
 }
 
@@ -32,11 +33,13 @@ export function Explorer({ onJobCreated }: Props) {
       const req: GenerateRequest = { prompt, provider: "replicate", model, size };
       const res = await generateImage(req);
 
+      const resAny = res as GenerateResponse & { storedKey?: string };
       const result: ExplorerResult = {
         id: res.id,
         prompt,
         status: res.status === "completed" ? "completed" : res.status === "failed" ? "failed" : "running",
         resultUrl: res.resultUrl,
+        storedKey: resAny.storedKey,
         error: res.error,
       };
 
@@ -63,6 +66,7 @@ export function Explorer({ onJobCreated }: Props) {
       await new Promise((r) => setTimeout(r, 2000));
       try {
         const res = await pollPrediction(id);
+        const pollAny = res as GenerateResponse & { storedKey?: string };
         setResults((prev) =>
           prev.map((r) =>
             r.id === id
@@ -70,6 +74,7 @@ export function Explorer({ onJobCreated }: Props) {
                   ...r,
                   status: res.status === "completed" ? "completed" : res.status === "failed" ? "failed" : "running",
                   resultUrl: res.resultUrl,
+                  storedKey: pollAny.storedKey ?? r.storedKey,
                   error: res.error,
                 }
               : r
@@ -100,6 +105,7 @@ export function Explorer({ onJobCreated }: Props) {
       provider: "replicate",
       model,
       resultUrl: r.resultUrl,
+      storedKey: r.storedKey,
       error: r.error,
       createdAt: now,
       updatedAt: now,
@@ -142,12 +148,12 @@ export function Explorer({ onJobCreated }: Props) {
         <div className="results-grid">
           {results.map((r) => (
             <div key={r.id} className="result-card">
-              {r.status === "completed" && r.resultUrl ? (
-                <img src={r.resultUrl} alt={r.prompt} />
+              {r.status === "completed" && (r.storedKey || r.resultUrl) ? (
+                <img src={r.storedKey ? imageUrl(r.storedKey) : r.resultUrl!} alt={r.prompt} />
               ) : (
                 <div style={{ aspectRatio: "1", display: "grid", placeItems: "center" }}>
                   {r.status === "running" && <span className="status-badge running">generating...</span>}
-                  {r.status === "failed" && <span className="status-badge failed">failed</span>}
+                  {r.status === "failed" && <span className="status-badge failed">failed{r.error ? `: ${r.error}` : ""}</span>}
                 </div>
               )}
               <div className="meta">
