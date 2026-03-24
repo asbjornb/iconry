@@ -42,6 +42,18 @@ function generateId(): string {
 
 // ── Replicate adapter ───────────────────────────────────────────────
 
+function isFluxModel(model: string): boolean {
+  return model.startsWith("black-forest-labs/flux");
+}
+
+function sizeToAspectRatio(size: string): string {
+  const [w, h] = size.split("x").map(Number);
+  if (!w || !h) return "1:1";
+  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+  const d = gcd(w, h);
+  return `${w / d}:${h / d}`;
+}
+
 async function generateReplicate(
   req: GenerateRequest,
   env: Env
@@ -57,7 +69,16 @@ async function generateReplicate(
     ...(req.extra ?? {}),
   };
 
-  if (req.size) {
+  if (isFluxModel(req.model)) {
+    // Flux models use aspect_ratio instead of width/height
+    if (req.size) {
+      input.aspect_ratio = sizeToAspectRatio(req.size);
+    }
+    // Request PNG output for consistent storage
+    if (!input.output_format) {
+      input.output_format = "png";
+    }
+  } else if (req.size) {
     const [w, h] = req.size.split("x").map(Number);
     input.width = w;
     input.height = h;
