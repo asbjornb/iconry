@@ -65,7 +65,7 @@ export function Explorer({ onJobCreated }: Props) {
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise((r) => setTimeout(r, 2000));
       try {
-        const res = await pollPrediction(id);
+        const res = await pollPrediction(id, { prompt, model });
         const pollAny = res as GenerateResponse & { storedKey?: string };
         setResults((prev) =>
           prev.map((r) =>

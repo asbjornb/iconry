@@ -157,7 +157,8 @@ async function pollReplicate(
 async function storeImage(
   env: Env,
   key: string,
-  imageUrl: string
+  imageUrl: string,
+  meta?: Record<string, string>
 ): Promise<string | null> {
   if (!env.ASSETS_BUCKET) return null;
 
@@ -167,6 +168,7 @@ async function storeImage(
   const contentType = res.headers.get("Content-Type") ?? "image/png";
   await env.ASSETS_BUCKET.put(key, res.body, {
     httpMetadata: { contentType },
+    customMetadata: meta,
   });
   return key;
 }
@@ -220,6 +222,39 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const authErr = checkAuth(request, env);
   if (authErr) return authErr;
 
+  // ── GET /api/jobs — list stored images as jobs ─────────────────
+  if (path === "/api/jobs" && request.method === "GET") {
+    if (!env.ASSETS_BUCKET) return json({ jobs: [] });
+
+    const jobs: GenerationJob[] = [];
+    let cursor: string | undefined;
+
+    do {
+      const listed = await env.ASSETS_BUCKET.list({ cursor, limit: 500 });
+      for (const obj of listed.objects) {
+        const m = obj.customMetadata ?? {};
+        if (!m.prompt) continue; // skip objects without job metadata
+        jobs.push({
+          id: obj.key,
+          packName: m.packName ?? "unknown",
+          iconName: m.iconName ?? obj.key.split("/").pop()?.replace(".png", "") ?? "unknown",
+          status: "completed",
+          prompt: m.prompt,
+          provider: m.provider ?? "replicate",
+          model: m.model ?? "unknown",
+          storedKey: obj.key,
+          createdAt: obj.uploaded.toISOString(),
+          updatedAt: obj.uploaded.toISOString(),
+        });
+      }
+      cursor = listed.truncated ? listed.cursor : undefined;
+    } while (cursor);
+
+    // Newest first
+    jobs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return json({ jobs });
+  }
+
   // ── GET /api/test-replicate — verify Replicate token is valid ───
   if (path === "/api/test-replicate" && request.method === "GET") {
     const token = env.REPLICATE_API_TOKEN;
@@ -251,7 +286,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     if (result.status === "completed" && result.resultUrl) {
       const key = `generated/${Date.now()}-${generateId()}.png`;
-      const stored = await storeImage(env, key, result.resultUrl);
+      const meta = {
+        prompt: req.prompt,
+        provider: "replicate",
+        model: req.model,
+        packName: "explorer",
+        iconName: `explore-${Date.now()}`,
+      };
+      const stored = await storeImage(env, key, result.resultUrl, meta);
       if (stored) {
         (result as GenerateResponse & { storedKey?: string }).storedKey =
           stored;
@@ -264,11 +306,21 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   // ── GET /api/poll/:id — poll replicate prediction ───────────────
   if (path.startsWith("/api/poll/") && request.method === "GET") {
     const predictionId = path.replace("/api/poll/", "");
+    // Read metadata from query params (passed by client during polling)
+    const pollPrompt = url.searchParams.get("prompt") ?? "";
+    const pollModel = url.searchParams.get("model") ?? "";
     const result = await pollReplicate(predictionId, env);
 
     if (result.status === "completed" && result.resultUrl) {
       const key = `generated/${Date.now()}-${predictionId}.png`;
-      const stored = await storeImage(env, key, result.resultUrl);
+      const meta = {
+        prompt: pollPrompt,
+        provider: "replicate",
+        model: pollModel,
+        packName: "explorer",
+        iconName: `explore-${Date.now()}`,
+      };
+      const stored = await storeImage(env, key, result.resultUrl, meta);
       if (stored) {
         (result as GenerateResponse & { storedKey?: string }).storedKey =
           stored;
@@ -316,7 +368,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       if (result.status === "completed" && result.resultUrl) {
         const key = `packs/${pack.name}/${icon.name}.png`;
-        const stored = await storeImage(env, key, result.resultUrl);
+        const meta = {
+          prompt: fullPrompt,
+          provider: "replicate",
+          model: pack.style.model,
+          packName: pack.name,
+          iconName: icon.name,
+        };
+        const stored = await storeImage(env, key, result.resultUrl, meta);
         if (stored) job.storedKey = stored;
       }
 
