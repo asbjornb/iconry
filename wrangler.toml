@@ -5,14 +5,10 @@ compatibility_date = "2024-12-01"
 [vars]
 ENVIRONMENT = "production"
 
-# Uncomment after creating the R2 bucket:
-# wrangler r2 bucket create iconry-assets
-# [[r2_buckets]]
-# binding = "ASSETS_BUCKET"
-# bucket_name = "iconry-assets"
+[[r2_buckets]]
+binding = "ASSETS_BUCKET"
+bucket_name = "iconry-assets"
 
 # Secrets (set via `wrangler secret put`):
 # REPLICATE_API_TOKEN
-# RECRAFT_API_TOKEN
-# OPENAI_API_KEY
 # AUTH_SECRET - shared secret for simple auth
