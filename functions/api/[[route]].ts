@@ -203,6 +203,30 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const authErr = checkAuth(request, env);
   if (authErr) return authErr;
 
+  // ── GET /api/test-replicate — verify Replicate token is valid ───
+  if (path === "/api/test-replicate" && request.method === "GET") {
+    const token = env.REPLICATE_API_TOKEN;
+    if (!token) {
+      return json({ ok: false, error: "REPLICATE_API_TOKEN not set in environment" });
+    }
+    try {
+      const res = await fetch("https://api.replicate.com/v1/account", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = (await res.json()) as Record<string, unknown>;
+        return json({
+          ok: false,
+          error: (data.detail as string) ?? `Replicate API returned ${res.status}`,
+        });
+      }
+      const account = (await res.json()) as Record<string, unknown>;
+      return json({ ok: true, username: account.username });
+    } catch (e) {
+      return json({ ok: false, error: (e as Error).message });
+    }
+  }
+
   // ── POST /api/generate — single image ───────────────────────────
   if (path === "/api/generate" && request.method === "POST") {
     const req = (await request.json()) as GenerateRequest;

@@ -51,6 +51,10 @@ export async function checkHealth() {
   return request<{ ok: boolean; replicate: boolean; r2: boolean; auth: boolean }>("/api/health");
 }
 
+export async function testReplicate() {
+  return request<{ ok: boolean; username?: string; error?: string }>("/api/test-replicate");
+}
+
 export function imageUrl(key: string): string {
   return `${BASE}/api/image/${encodeURIComponent(key)}`;
 }
