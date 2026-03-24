@@ -49,12 +49,32 @@ function isFluxModel(model: string): boolean {
   return model.startsWith("black-forest-labs/flux");
 }
 
+function isRecraftModel(model: string): boolean {
+  return model.startsWith("recraft-ai/");
+}
+
+function isAspectRatioModel(model: string): boolean {
+  return model.startsWith("ideogram-ai/") || model.startsWith("google-deepmind/");
+}
+
 function sizeToAspectRatio(size: string): string {
   const [w, h] = size.split("x").map(Number);
   if (!w || !h) return "1:1";
   const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
   const d = gcd(w, h);
   return `${w / d}:${h / d}`;
+}
+
+function extractOutputUrl(data: Record<string, unknown>): string | undefined {
+  // Models return output in different formats:
+  // - Array of URLs (Flux, SDXL): ["https://..."]
+  // - Single URL string (Recraft, some others): "https://..."
+  // - Object with url field: { url: "https://..." }
+  const output = data.output;
+  if (Array.isArray(output)) return output[0] as string;
+  if (typeof output === "string") return output;
+  if (output && typeof output === "object" && "url" in output) return (output as Record<string, string>).url;
+  return undefined;
 }
 
 async function generateReplicate(
@@ -80,6 +100,16 @@ async function generateReplicate(
     // Request PNG output for consistent storage
     if (!input.output_format) {
       input.output_format = "png";
+    }
+  } else if (isRecraftModel(req.model)) {
+    // Recraft models accept size as a WxH string directly
+    if (req.size) {
+      input.size = req.size;
+    }
+  } else if (isAspectRatioModel(req.model)) {
+    // Ideogram, Imagen etc. use aspect_ratio
+    if (req.size) {
+      input.aspect_ratio = sizeToAspectRatio(req.size);
     }
   } else if (req.size) {
     const [w, h] = req.size.split("x").map(Number);
@@ -112,9 +142,7 @@ async function generateReplicate(
   return {
     id: data.id as string,
     status: data.status === "succeeded" ? "completed" : "running",
-    resultUrl: Array.isArray(data.output)
-      ? (data.output[0] as string)
-      : undefined,
+    resultUrl: extractOutputUrl(data),
   };
 }
 
@@ -148,9 +176,7 @@ async function pollReplicate(
         : status === "failed"
           ? "failed"
           : "running",
-    resultUrl: Array.isArray(data.output)
-      ? (data.output[0] as string)
-      : undefined,
+    resultUrl: extractOutputUrl(data),
     error: data.error as string | undefined,
   };
 }
