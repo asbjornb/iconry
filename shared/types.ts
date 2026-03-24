@@ -99,6 +99,47 @@ export interface BatchResponse {
   jobs: GenerationJob[];
 }
 
+// ── Projects ────────────────────────────────────────────────────────
+
+export interface Project {
+  id: string;
+  name: string;
+  /** Common prompt prefix prepended to every item */
+  preamble: string;
+  /** Common prompt suffix appended to every item */
+  postfix: string;
+  /** Individual items to generate */
+  items: string[];
+  /** Model to use */
+  model: string;
+  /** Output size */
+  size: string;
+  /** History of generation runs */
+  runs: ProjectRun[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectRun {
+  id: string;
+  /** Snapshot of the preamble/postfix/model used for this run */
+  preamble: string;
+  postfix: string;
+  model: string;
+  size: string;
+  /** Per-item results */
+  results: ProjectRunResult[];
+  createdAt: string;
+}
+
+export interface ProjectRunResult {
+  item: string;
+  prompt: string;
+  storedKey?: string;
+  status: JobStatus;
+  error?: string;
+}
+
 // ── Example pack for the tropical island game ───────────────────────
 
 export const EXAMPLE_PACK: PackSpec = {

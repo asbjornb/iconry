@@ -4,6 +4,9 @@ import type {
   BatchRequest,
   BatchResponse,
   GenerationJob,
+  Project,
+  ProjectRun,
+  ProjectRunResult,
 } from "../../shared/types";
 
 interface Env {
@@ -391,6 +394,136 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const key = decodeURIComponent(path.replace("/api/image/", ""));
     await env.ASSETS_BUCKET.delete(key);
     return json({ ok: true, key });
+  }
+
+  // ── GET /api/projects — list all projects ─────────────────────
+  if (path === "/api/projects" && request.method === "GET") {
+    if (!env.ASSETS_BUCKET) return json({ projects: [] });
+
+    const projects: Project[] = [];
+    const listed = await env.ASSETS_BUCKET.list({ prefix: "projects/", limit: 500, include: ["customMetadata"] });
+    for (const obj of listed.objects) {
+      if (!obj.key.endsWith(".json")) continue;
+      const data = await env.ASSETS_BUCKET.get(obj.key);
+      if (!data) continue;
+      try {
+        const project = JSON.parse(await data.text()) as Project;
+        projects.push(project);
+      } catch { /* skip malformed */ }
+    }
+    projects.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return json({ projects });
+  }
+
+  // ── GET /api/projects/:id — get single project ────────────────
+  if (path.match(/^\/api\/projects\/[^/]+$/) && request.method === "GET") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+    const id = path.replace("/api/projects/", "");
+    const data = await env.ASSETS_BUCKET.get(`projects/${id}.json`);
+    if (!data) return err("Project not found", 404);
+    return json(JSON.parse(await data.text()));
+  }
+
+  // ── PUT /api/projects/:id — create or update project ──────────
+  if (path.match(/^\/api\/projects\/[^/]+$/) && request.method === "PUT") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+    const project = (await request.json()) as Project;
+    project.updatedAt = new Date().toISOString();
+    await env.ASSETS_BUCKET.put(
+      `projects/${project.id}.json`,
+      JSON.stringify(project),
+      { httpMetadata: { contentType: "application/json" } }
+    );
+    return json(project);
+  }
+
+  // ── DELETE /api/projects/:id — delete project ─────────────────
+  if (path.match(/^\/api\/projects\/[^/]+$/) && request.method === "DELETE") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+    const id = path.replace("/api/projects/", "");
+    await env.ASSETS_BUCKET.delete(`projects/${id}.json`);
+    return json({ ok: true });
+  }
+
+  // ── POST /api/projects/:id/run — generate all items in project ─
+  if (path.match(/^\/api\/projects\/[^/]+\/run$/) && request.method === "POST") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+
+    const id = path.replace("/api/projects/", "").replace("/run", "");
+    const projectData = await env.ASSETS_BUCKET.get(`projects/${id}.json`);
+    if (!projectData) return err("Project not found", 404);
+
+    const project = JSON.parse(await projectData.text()) as Project;
+    const runId = generateId();
+    const now = new Date().toISOString();
+    const results: ProjectRunResult[] = [];
+
+    for (const item of project.items) {
+      const parts = [project.preamble, item, project.postfix].filter(Boolean);
+      const fullPrompt = parts.join(", ");
+
+      const req: GenerateRequest = {
+        prompt: fullPrompt,
+        provider: "replicate",
+        model: project.model,
+        size: project.size,
+      };
+
+      const genResult = await generateReplicate(req, env);
+
+      // If async, poll until done
+      let finalResult = genResult;
+      if (genResult.status === "running" && genResult.id) {
+        for (let i = 0; i < 60; i++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          finalResult = await pollReplicate(genResult.id, env);
+          if (finalResult.status === "completed" || finalResult.status === "failed") break;
+        }
+      }
+
+      const runResult: ProjectRunResult = {
+        item,
+        prompt: fullPrompt,
+        status: finalResult.status === "completed" ? "completed" : "failed",
+        error: finalResult.error,
+      };
+
+      if (finalResult.status === "completed" && finalResult.resultUrl) {
+        const sanitized = item.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
+        const key = `projects/${id}/${runId}/${sanitized}.png`;
+        const meta = {
+          prompt: fullPrompt,
+          provider: "replicate",
+          model: project.model,
+          packName: project.name,
+          iconName: item,
+        };
+        const stored = await storeImage(env, key, finalResult.resultUrl, meta);
+        if (stored) runResult.storedKey = stored;
+      }
+
+      results.push(runResult);
+    }
+
+    const run: ProjectRun = {
+      id: runId,
+      preamble: project.preamble,
+      postfix: project.postfix,
+      model: project.model,
+      size: project.size,
+      results,
+      createdAt: now,
+    };
+
+    project.runs.push(run);
+    project.updatedAt = now;
+    await env.ASSETS_BUCKET.put(
+      `projects/${id}.json`,
+      JSON.stringify(project),
+      { httpMetadata: { contentType: "application/json" } }
+    );
+
+    return json(run);
   }
 
   return err("Not found", 404);
