@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { generateImage, pollPrediction, imageUrl, deleteImage } from "../lib/api";
 import type { GenerateRequest, GenerationJob } from "@shared/types";
 import { ModelSelect } from "../components/ModelSelect";
 
 interface Props {
   onJobCreated: (job: GenerationJob) => void;
+  initialPrompt?: string | null;
+  initialModel?: string | null;
+  onPromptConsumed?: () => void;
 }
 
 interface ExplorerResult {
@@ -16,7 +19,7 @@ interface ExplorerResult {
   error?: string;
 }
 
-export function Explorer({ onJobCreated }: Props) {
+export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptConsumed }: Props) {
   const [prompt, setPrompt] = useState(
     "minimal flat icon, game asset, tropical island theme, clean edges, transparent background, a coconut"
   );
@@ -25,6 +28,14 @@ export function Explorer({ onJobCreated }: Props) {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<ExplorerResult[]>([]);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (initialPrompt) {
+      setPrompt(initialPrompt);
+      if (initialModel) setModel(initialModel);
+      onPromptConsumed?.();
+    }
+  }, [initialPrompt]);
 
   async function handleGenerate() {
     setLoading(true);
