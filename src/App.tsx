@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Explorer } from "./views/Explorer";
 import { BatchEditor } from "./views/BatchEditor";
 import { Review } from "./views/Review";
 import { Settings } from "./components/Settings";
+import { listJobs } from "./lib/api";
 import type { GenerationJob } from "@shared/types";
 
 type Tab = "explore" | "batch" | "review" | "settings";
@@ -10,6 +11,17 @@ type Tab = "explore" | "batch" | "review" | "settings";
 export function App() {
   const [tab, setTab] = useState<Tab>("explore");
   const [jobs, setJobs] = useState<GenerationJob[]>([]);
+
+  useEffect(() => {
+    listJobs()
+      .then((stored) => setJobs((prev) => {
+        // Merge: keep existing in-progress jobs, add stored ones not already present
+        const existingIds = new Set(prev.map((j) => j.id));
+        const newOnes = stored.filter((j) => !existingIds.has(j.id));
+        return [...prev, ...newOnes];
+      }))
+      .catch(() => {}); // auth not set yet, ignore
+  }, []);
 
   const addJobs = (newJobs: GenerationJob[]) => {
     setJobs((prev) => [...prev, ...newJobs]);

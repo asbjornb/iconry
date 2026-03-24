@@ -1,4 +1,4 @@
-import type { GenerateRequest, GenerateResponse, BatchRequest, BatchResponse } from "@shared/types";
+import type { GenerateRequest, GenerateResponse, BatchRequest, BatchResponse, GenerationJob } from "@shared/types";
 
 const BASE = import.meta.env.DEV ? "" : ""; // proxy in dev, same origin in prod
 
@@ -36,8 +36,14 @@ export async function generateImage(req: GenerateRequest): Promise<GenerateRespo
   });
 }
 
-export async function pollPrediction(id: string): Promise<GenerateResponse> {
-  return request<GenerateResponse>(`/api/poll/${id}`);
+export async function pollPrediction(id: string, meta?: { prompt: string; model: string }): Promise<GenerateResponse> {
+  const params = meta ? `?prompt=${encodeURIComponent(meta.prompt)}&model=${encodeURIComponent(meta.model)}` : "";
+  return request<GenerateResponse>(`/api/poll/${id}${params}`);
+}
+
+export async function listJobs(): Promise<GenerationJob[]> {
+  const res = await request<{ jobs: GenerationJob[] }>("/api/jobs");
+  return res.jobs;
 }
 
 export async function submitBatch(pack: BatchRequest["pack"]): Promise<BatchResponse> {
