@@ -25,7 +25,7 @@ export function Review({ jobs, onUpdateJob }: Props) {
     try {
       const req: GenerateRequest = {
         prompt: job.prompt,
-        provider: job.provider as GenerateRequest["provider"],
+        provider: "replicate",
         model: job.model,
       };
       const res = await generateImage(req);

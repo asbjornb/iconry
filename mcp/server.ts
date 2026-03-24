@@ -69,7 +69,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "generate_icon",
       description:
-        "Generate a single icon/game asset image. Returns the image URL. " +
+        "Generate a single icon/game asset image via Replicate. Returns the image URL. " +
         "Use this for quick exploration or one-off assets.",
       inputSchema: {
         type: "object" as const,
@@ -79,15 +79,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             description:
               "Full prompt for the icon, e.g. 'minimal flat icon, game asset, a coconut, transparent background'",
           },
-          provider: {
-            type: "string",
-            enum: ["replicate", "openai", "recraft"],
-            description: "Which image generation provider to use (default: replicate)",
-          },
           model: {
             type: "string",
             description:
-              "Model ID (default: black-forest-labs/flux-schnell for replicate)",
+              "Replicate model ID (default: black-forest-labs/flux-schnell)",
           },
           size: {
             type: "string",
@@ -110,7 +105,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           pack: {
             type: "object",
             description:
-              "A PackSpec object with name, style (basePrompt, provider, model, etc), and icons array",
+              "A PackSpec object with name, style (basePrompt, model, etc), and icons array",
           },
         },
         required: ["pack"],
@@ -119,7 +114,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "check_status",
       description:
-        "Check which providers are configured and whether the Iconry backend is reachable.",
+        "Check whether the Iconry backend is reachable and Replicate is configured.",
       inputSchema: {
         type: "object" as const,
         properties: {},
@@ -134,14 +129,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   switch (name) {
     case "generate_icon": {
       const prompt = args?.prompt as string;
-      const provider = (args?.provider as string) ?? "replicate";
-      const model =
-        (args?.model as string) ??
-        (provider === "replicate" ? "black-forest-labs/flux-schnell" : undefined) ??
-        "";
+      const model = (args?.model as string) ?? "black-forest-labs/flux-schnell";
       const size = (args?.size as string) ?? "256x256";
 
-      const req: GenerateRequest = { prompt, provider: provider as GenerateRequest["provider"], model, size };
+      const req: GenerateRequest = { prompt, provider: "replicate", model, size };
       let res = await apiRequest<GenerateResponse>("/api/generate", req);
 
       // Poll if async
@@ -178,7 +169,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         "Results:",
         ...res.jobs.map(
           (j) =>
-            `  ${j.status === "completed" ? "✓" : "✗"} ${j.iconName}: ${j.resultUrl ?? j.error ?? "no result"}`
+            `  ${j.status === "completed" ? "ok" : "FAIL"} ${j.iconName}: ${j.resultUrl ?? j.error ?? "no result"}`
         ),
       ].join("\n");
 
@@ -188,17 +179,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case "check_status": {
       const health = await apiRequest<{
         ok: boolean;
-        providers: Record<string, boolean>;
+        replicate: boolean;
         r2: boolean;
+        auth: boolean;
       }>("/api/health");
 
       const lines = [
         `Backend: ${health.ok ? "connected" : "error"}`,
+        `Auth: ${health.auth ? "configured" : "not configured"}`,
         `R2 Storage: ${health.r2 ? "configured" : "not configured"}`,
-        "Providers:",
-        ...Object.entries(health.providers).map(
-          ([name, ok]) => `  ${name}: ${ok ? "configured" : "no API key"}`
-        ),
+        `Replicate: ${health.replicate ? "configured" : "no API key"}`,
       ];
 
       return { content: [{ type: "text", text: lines.join("\n") }] };

@@ -48,7 +48,7 @@ export async function submitBatch(pack: BatchRequest["pack"]): Promise<BatchResp
 }
 
 export async function checkHealth() {
-  return request<{ ok: boolean; providers: Record<string, boolean>; r2: boolean }>("/api/health");
+  return request<{ ok: boolean; replicate: boolean; r2: boolean; auth: boolean }>("/api/health");
 }
 
 export function imageUrl(key: string): string {

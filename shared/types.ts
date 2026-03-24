@@ -13,8 +13,8 @@ export interface StyleSpec {
   /** Negative prompt (if the model supports it) */
   negativePrompt?: string;
   /** Provider to use */
-  provider: "replicate" | "recraft" | "openai";
-  /** Model identifier (provider-specific, e.g. "black-forest-labs/flux-schnell") */
+  provider: "replicate";
+  /** Model identifier (e.g. "black-forest-labs/flux-schnell") */
   model: string;
   /** Reference/example image URLs for style consistency */
   referenceImages?: string[];
@@ -73,7 +73,7 @@ export interface PackState {
 
 export interface GenerateRequest {
   prompt: string;
-  provider: StyleSpec["provider"];
+  provider: "replicate";
   model: string;
   size?: string;
   seed?: number;

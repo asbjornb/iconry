@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { generateImage, pollPrediction } from "../lib/api";
-import type { GenerateRequest, GenerateResponse, GenerationJob } from "@shared/types";
+import type { GenerateRequest, GenerationJob } from "@shared/types";
 
 interface Props {
   onJobCreated: (job: GenerationJob) => void;
@@ -18,7 +18,6 @@ export function Explorer({ onJobCreated }: Props) {
   const [prompt, setPrompt] = useState(
     "minimal flat icon, game asset, tropical island theme, clean edges, transparent background, a coconut"
   );
-  const [provider, setProvider] = useState<GenerateRequest["provider"]>("replicate");
   const [model, setModel] = useState("black-forest-labs/flux-schnell");
   const [size, setSize] = useState("256x256");
   const [loading, setLoading] = useState(false);
@@ -30,7 +29,7 @@ export function Explorer({ onJobCreated }: Props) {
     setError("");
 
     try {
-      const req: GenerateRequest = { prompt, provider, model, size };
+      const req: GenerateRequest = { prompt, provider: "replicate", model, size };
       const res = await generateImage(req);
 
       const result: ExplorerResult = {
@@ -43,7 +42,7 @@ export function Explorer({ onJobCreated }: Props) {
 
       setResults((prev) => [result, ...prev]);
 
-      // Poll if async (Replicate)
+      // Poll if async (Replicate is always async)
       if (res.status !== "completed" && res.status !== "failed" && res.id) {
         pollUntilDone(res.id);
       }
@@ -98,7 +97,7 @@ export function Explorer({ onJobCreated }: Props) {
       iconName: `explore-${Date.now()}`,
       status: r.status,
       prompt: r.prompt,
-      provider,
+      provider: "replicate",
       model,
       resultUrl: r.resultUrl,
       error: r.error,
@@ -111,14 +110,6 @@ export function Explorer({ onJobCreated }: Props) {
     <div className="explorer">
       <div className="prompt-area">
         <div className="settings-row">
-          <div className="field">
-            <label>Provider</label>
-            <select value={provider} onChange={(e) => setProvider(e.target.value as GenerateRequest["provider"])}>
-              <option value="replicate">Replicate</option>
-              <option value="openai">OpenAI</option>
-              <option value="recraft">Recraft</option>
-            </select>
-          </div>
           <div className="field">
             <label>Model</label>
             <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="model id" />

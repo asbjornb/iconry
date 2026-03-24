@@ -1,11 +1,9 @@
-import type { GenerateRequest, GenerateResponse, BatchRequest, BatchResponse, GenerationJob, PackState } from "../shared/types";
+import type { GenerateRequest, GenerateResponse, BatchRequest, BatchResponse, GenerationJob } from "../shared/types";
 
 export interface Env {
-  ASSETS_BUCKET?: R2Bucket;
-  REPLICATE_API_TOKEN?: string;
-  RECRAFT_API_TOKEN?: string;
-  OPENAI_API_KEY?: string;
-  AUTH_SECRET?: string;
+  ASSETS_BUCKET: R2Bucket;
+  REPLICATE_API_TOKEN: string;
+  AUTH_SECRET: string;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -13,7 +11,10 @@ export interface Env {
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    },
   });
 }
 
@@ -23,7 +24,7 @@ function err(message: string, status = 400) {
 
 function checkAuth(request: Request, env: Env): Response | null {
   const secret = env.AUTH_SECRET;
-  if (!secret) return null; // no auth configured = allow all (dev mode)
+  if (!secret) return err("AUTH_SECRET not configured on worker", 500);
   const token = request.headers.get("Authorization")?.replace("Bearer ", "");
   if (token !== secret) return err("Unauthorized", 401);
   return null;
@@ -33,7 +34,7 @@ function generateId(): string {
   return crypto.randomUUID();
 }
 
-// ── Provider adapters ───────────────────────────────────────────────
+// ── Replicate adapter ───────────────────────────────────────────────
 
 async function generateReplicate(req: GenerateRequest, env: Env): Promise<GenerateResponse> {
   const token = env.REPLICATE_API_TOKEN;
@@ -93,93 +94,6 @@ async function pollReplicate(predictionId: string, env: Env): Promise<GenerateRe
   };
 }
 
-async function generateOpenAI(req: GenerateRequest, env: Env): Promise<GenerateResponse> {
-  const key = env.OPENAI_API_KEY;
-  if (!key) return { id: "", status: "failed", error: "OPENAI_API_KEY not set" };
-
-  const body: Record<string, unknown> = {
-    model: req.model || "dall-e-3",
-    prompt: req.prompt,
-    n: 1,
-    size: req.size === "256x256" ? "1024x1024" : (req.size ?? "1024x1024"),
-    response_format: "url",
-  };
-
-  const res = await fetch("https://api.openai.com/v1/images/generations", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = (await res.json()) as Record<string, unknown>;
-  if (!res.ok) {
-    const errObj = data.error as Record<string, unknown> | undefined;
-    return { id: "", status: "failed", error: (errObj?.message as string) ?? res.statusText };
-  }
-
-  const images = data.data as Array<{ url: string }>;
-  return {
-    id: generateId(),
-    status: "completed",
-    resultUrl: images[0]?.url,
-  };
-}
-
-async function generateRecraft(req: GenerateRequest, env: Env): Promise<GenerateResponse> {
-  const token = env.RECRAFT_API_TOKEN;
-  if (!token) return { id: "", status: "failed", error: "RECRAFT_API_TOKEN not set" };
-
-  const body: Record<string, unknown> = {
-    prompt: req.prompt,
-    style: "icon",
-    ...(req.negativePrompt && { negative_prompt: req.negativePrompt }),
-    ...(req.extra ?? {}),
-  };
-
-  if (req.size) {
-    const [w, h] = req.size.split("x").map(Number);
-    body.width = w;
-    body.height = h;
-  }
-
-  const res = await fetch("https://external.api.recraft.ai/v1/images/generations", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = (await res.json()) as Record<string, unknown>;
-  if (!res.ok) {
-    return { id: "", status: "failed", error: JSON.stringify(data) };
-  }
-
-  const images = data.data as Array<{ url: string }>;
-  return {
-    id: generateId(),
-    status: "completed",
-    resultUrl: images[0]?.url,
-  };
-}
-
-async function generate(req: GenerateRequest, env: Env): Promise<GenerateResponse> {
-  switch (req.provider) {
-    case "replicate":
-      return generateReplicate(req, env);
-    case "openai":
-      return generateOpenAI(req, env);
-    case "recraft":
-      return generateRecraft(req, env);
-    default:
-      return { id: "", status: "failed", error: `Unknown provider: ${req.provider}` };
-  }
-}
-
 // ── Store image to R2 ───────────────────────────────────────────────
 
 async function storeImage(env: Env, key: string, imageUrl: string): Promise<string | null> {
@@ -202,7 +116,7 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // CORS
+    // CORS preflight
     if (request.method === "OPTIONS") {
       return new Response(null, {
         headers: {
@@ -213,16 +127,26 @@ export default {
       });
     }
 
-    // Auth check
+    // Health endpoint is public (no auth needed to check status)
+    if (path === "/api/health") {
+      return json({
+        ok: true,
+        replicate: !!env.REPLICATE_API_TOKEN,
+        r2: !!env.ASSETS_BUCKET,
+        auth: !!env.AUTH_SECRET,
+      });
+    }
+
+    // Auth check for all other API routes
     const authErr = checkAuth(request, env);
     if (authErr) return authErr;
 
     // ── POST /api/generate — single image ───────────────────────────
     if (path === "/api/generate" && request.method === "POST") {
       const req = (await request.json()) as GenerateRequest;
-      const result = await generate(req, env);
+      const result = await generateReplicate(req, env);
 
-      // If completed immediately and we have R2, store it
+      // If completed immediately, store to R2
       if (result.status === "completed" && result.resultUrl) {
         const key = `generated/${Date.now()}-${generateId()}.png`;
         const stored = await storeImage(env, key, result.resultUrl);
@@ -261,7 +185,7 @@ export default {
         const fullPrompt = `${pack.style.basePrompt}, ${icon.prompt}`;
         const req: GenerateRequest = {
           prompt: fullPrompt,
-          provider: pack.style.provider,
+          provider: "replicate",
           model: pack.style.model,
           size: icon.size ?? pack.style.defaultSize,
           seed: icon.seed ?? pack.style.seed,
@@ -270,7 +194,7 @@ export default {
           extra: { ...pack.style.extra, ...icon.extra },
         };
 
-        const result = await generate(req, env);
+        const result = await generateReplicate(req, env);
         const now = new Date().toISOString();
 
         const job: GenerationJob = {
@@ -279,7 +203,7 @@ export default {
           iconName: icon.name,
           status: result.status,
           prompt: fullPrompt,
-          provider: pack.style.provider,
+          provider: "replicate",
           model: pack.style.model,
           resultUrl: result.resultUrl,
           error: result.error,
@@ -313,20 +237,8 @@ export default {
         headers: {
           "Content-Type": obj.httpMetadata?.contentType ?? "image/png",
           "Cache-Control": "public, max-age=31536000",
+          "Access-Control-Allow-Origin": "*",
         },
-      });
-    }
-
-    // ── GET /api/health ─────────────────────────────────────────────
-    if (path === "/api/health") {
-      return json({
-        ok: true,
-        providers: {
-          replicate: !!env.REPLICATE_API_TOKEN,
-          openai: !!env.OPENAI_API_KEY,
-          recraft: !!env.RECRAFT_API_TOKEN,
-        },
-        r2: !!env.ASSETS_BUCKET,
       });
     }
 
