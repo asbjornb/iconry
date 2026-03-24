@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { generateImage, pollPrediction, imageUrl, deleteImage } from "../lib/api";
+import { generateImage, pollPrediction, imageUrl, deleteImage, saveDrawing } from "../lib/api";
 import type { GenerationJob, GenerateRequest } from "@shared/types";
 
 interface Props {
@@ -11,6 +11,7 @@ interface Props {
 export function Review({ jobs, onUpdateJob, onDeleteJob }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "completed" | "failed">("all");
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
   const filtered = jobs.filter((j) => {
     if (filter === "completed") return j.status === "completed";
@@ -19,6 +20,25 @@ export function Review({ jobs, onUpdateJob, onDeleteJob }: Props) {
   });
 
   const packs = [...new Set(jobs.map((j) => j.packName))];
+
+  async function handleSave(job: GenerationJob) {
+    if (!job.storedKey) return;
+    try {
+      await saveDrawing({
+        imageKey: job.storedKey,
+        prompt: job.prompt,
+        model: job.model,
+        provider: job.provider,
+        source: job.packName,
+      });
+      setSavedIds((prev) => new Set([...prev, job.id]));
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg.includes("already saved")) {
+        setSavedIds((prev) => new Set([...prev, job.id]));
+      }
+    }
+  }
 
   async function handleReroll(job: GenerationJob) {
     onUpdateJob(job.id, { status: "running" });
@@ -162,6 +182,15 @@ export function Review({ jobs, onUpdateJob, onDeleteJob }: Props) {
             </div>
           )}
           <div style={{ display: "flex", gap: 8 }}>
+            {selectedJob.status === "completed" && selectedJob.storedKey && (
+              <button
+                onClick={() => handleSave(selectedJob)}
+                disabled={savedIds.has(selectedJob.id)}
+                style={savedIds.has(selectedJob.id) ? { color: "var(--success)", borderColor: "var(--success)" } : {}}
+              >
+                {savedIds.has(selectedJob.id) ? "Saved" : "Save"}
+              </button>
+            )}
             <button onClick={() => handleReroll(selectedJob)}>Reroll</button>
             {selectedJob.resultUrl && (
               <button onClick={() => window.open(selectedJob.resultUrl, "_blank")}>Open Full</button>

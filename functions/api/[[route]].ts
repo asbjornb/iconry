@@ -214,7 +214,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     return new Response(null, {
       headers: {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type, Authorization",
       },
     });
@@ -550,6 +550,119 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     );
 
     return json(run);
+  }
+
+  // ── GET /api/saved — list all saved drawings ────────────────────
+  if (path === "/api/saved" && request.method === "GET") {
+    if (!env.ASSETS_BUCKET) return json({ drawings: [] });
+    const data = await env.ASSETS_BUCKET.get("saved/index.json");
+    if (!data) return json({ drawings: [] });
+    try {
+      const drawings = JSON.parse(await data.text()) as unknown[];
+      return json({ drawings });
+    } catch {
+      return json({ drawings: [] });
+    }
+  }
+
+  // ── POST /api/saved — save a drawing ──────────────────────────
+  if (path === "/api/saved" && request.method === "POST") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+
+    const body = (await request.json()) as {
+      imageKey: string;
+      tags?: string[];
+      note?: string;
+      prompt: string;
+      model: string;
+      provider?: string;
+      source?: string;
+    };
+
+    // Verify the image exists
+    const imgObj = await env.ASSETS_BUCKET.head(body.imageKey);
+    if (!imgObj) return err("Image not found in storage", 404);
+
+    const now = new Date().toISOString();
+    const drawing = {
+      id: generateId(),
+      imageKey: body.imageKey,
+      tags: body.tags ?? [],
+      note: body.note ?? "",
+      prompt: body.prompt,
+      model: body.model,
+      provider: body.provider ?? "replicate",
+      source: body.source ?? "explorer",
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    // Load existing index
+    let drawings: unknown[] = [];
+    const existing = await env.ASSETS_BUCKET.get("saved/index.json");
+    if (existing) {
+      try { drawings = JSON.parse(await existing.text()) as unknown[]; } catch { /* start fresh */ }
+    }
+
+    // Check for duplicates by imageKey
+    const isDuplicate = drawings.some((d: any) => d.imageKey === body.imageKey);
+    if (isDuplicate) return err("This image is already saved", 409);
+
+    drawings.unshift(drawing);
+    await env.ASSETS_BUCKET.put("saved/index.json", JSON.stringify(drawings), {
+      httpMetadata: { contentType: "application/json" },
+    });
+
+    return json(drawing);
+  }
+
+  // ── PUT /api/saved/:id — update tags/note ─────────────────────
+  if (path.match(/^\/api\/saved\/[^/]+$/) && request.method === "PUT") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+
+    const id = path.replace("/api/saved/", "");
+    const body = (await request.json()) as { tags?: string[]; note?: string };
+
+    const data = await env.ASSETS_BUCKET.get("saved/index.json");
+    if (!data) return err("No saved drawings", 404);
+
+    let drawings: any[] = [];
+    try { drawings = JSON.parse(await data.text()); } catch { return err("Corrupted index", 500); }
+
+    const idx = drawings.findIndex((d: any) => d.id === id);
+    if (idx === -1) return err("Drawing not found", 404);
+
+    if (body.tags !== undefined) drawings[idx].tags = body.tags;
+    if (body.note !== undefined) drawings[idx].note = body.note;
+    drawings[idx].updatedAt = new Date().toISOString();
+
+    await env.ASSETS_BUCKET.put("saved/index.json", JSON.stringify(drawings), {
+      httpMetadata: { contentType: "application/json" },
+    });
+
+    return json(drawings[idx]);
+  }
+
+  // ── DELETE /api/saved/:id — remove from saved ─────────────────
+  if (path.match(/^\/api\/saved\/[^/]+$/) && request.method === "DELETE") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+
+    const id = path.replace("/api/saved/", "");
+
+    const data = await env.ASSETS_BUCKET.get("saved/index.json");
+    if (!data) return err("No saved drawings", 404);
+
+    let drawings: any[] = [];
+    try { drawings = JSON.parse(await data.text()); } catch { return err("Corrupted index", 500); }
+
+    const filtered = drawings.filter((d: any) => d.id !== id);
+    if (filtered.length === drawings.length) return err("Drawing not found", 404);
+
+    await env.ASSETS_BUCKET.put("saved/index.json", JSON.stringify(filtered), {
+      httpMetadata: { contentType: "application/json" },
+    });
+
+    return json({ ok: true });
   }
 
   return err("Not found", 404);

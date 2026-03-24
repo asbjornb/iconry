@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { generateImage, pollPrediction, imageUrl, deleteImage } from "../lib/api";
-import type { GenerateRequest, GenerationJob } from "@shared/types";
+import { generateImage, pollPrediction, imageUrl, deleteImage, saveDrawing, listProjects } from "../lib/api";
+import type { GenerateRequest, GenerationJob, Project } from "@shared/types";
 import { ModelSelect } from "../components/ModelSelect";
 
 interface Props {
@@ -13,10 +13,12 @@ interface Props {
 interface ExplorerResult {
   id: string;
   prompt: string;
+  model: string;
   status: "running" | "completed" | "failed";
   resultUrl?: string;
   storedKey?: string;
   error?: string;
+  saved?: boolean;
 }
 
 export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptConsumed }: Props) {
@@ -28,6 +30,8 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptCo
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<ExplorerResult[]>([]);
   const [error, setError] = useState("");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [saveMenuId, setSaveMenuId] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialPrompt) {
@@ -36,6 +40,10 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptCo
       onPromptConsumed?.();
     }
   }, [initialPrompt]);
+
+  useEffect(() => {
+    listProjects().then(setProjects).catch(() => {});
+  }, []);
 
   async function handleGenerate() {
     setLoading(true);
@@ -48,6 +56,7 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptCo
       const result: ExplorerResult = {
         id: res.id,
         prompt,
+        model,
         status: res.status === "completed" ? "completed" : res.status === "failed" ? "failed" : "running",
         resultUrl: res.resultUrl,
         storedKey: res.storedKey,
@@ -94,7 +103,7 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptCo
 
         if (res.status === "completed" || res.status === "failed") {
           if (res.status === "completed") {
-            const updated: ExplorerResult = { id, prompt, status: "completed", resultUrl: res.resultUrl, storedKey };
+            const updated: ExplorerResult = { id, prompt, model, status: "completed", resultUrl: res.resultUrl, storedKey };
             onJobCreated(resultToJob(updated));
           }
           return;
@@ -102,6 +111,27 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptCo
       } catch {
         // Retry on network error
       }
+    }
+  }
+
+  async function handleSave(r: ExplorerResult, projectName?: string) {
+    if (!r.storedKey) return;
+    try {
+      await saveDrawing({
+        imageKey: r.storedKey,
+        prompt: r.prompt,
+        model: r.model,
+        source: projectName ?? "explorer",
+        tags: projectName ? [projectName.toLowerCase()] : [],
+      });
+      setResults((prev) => prev.map((x) => (x.id === r.id ? { ...x, saved: true } : x)));
+      setSaveMenuId(null);
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg.includes("already saved")) {
+        setResults((prev) => prev.map((x) => (x.id === r.id ? { ...x, saved: true } : x)));
+      }
+      setSaveMenuId(null);
     }
   }
 
@@ -181,6 +211,31 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptCo
               <div className="meta">
                 <span>{r.prompt.slice(0, 40)}...</span>
                 <div className="actions">
+                  {r.status === "completed" && r.storedKey && !r.saved && (
+                    <div className="save-menu-wrap">
+                      <button onClick={() => setSaveMenuId(saveMenuId === r.id ? null : r.id)}>
+                        save
+                      </button>
+                      {saveMenuId === r.id && (
+                        <div className="save-menu">
+                          <button onClick={() => handleSave(r)}>Save (no project)</button>
+                          {projects.map((p) => (
+                            <button key={p.id} onClick={() => handleSave(r, p.name)}>
+                              {p.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {r.saved && (
+                    <button
+                      disabled
+                      style={{ color: "var(--success)", borderColor: "var(--success)" }}
+                    >
+                      saved
+                    </button>
+                  )}
                   {r.resultUrl && (
                     <button onClick={() => window.open(r.resultUrl, "_blank")}>open</button>
                   )}
