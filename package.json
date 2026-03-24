@@ -7,10 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "worker:dev": "wrangler dev worker/index.ts",
-    "worker:deploy": "wrangler deploy worker/index.ts",
+    "pages:dev": "wrangler pages dev dist --r2=ASSETS_BUCKET",
     "mcp:build": "tsc -p mcp/tsconfig.json",
-    "deploy": "npm run build && wrangler pages deploy dist"
+    "deploy": "npm run build && wrangler pages deploy dist --project-name=iconry"
   },
   "dependencies": {
     "react": "^19.0.0",
