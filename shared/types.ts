@@ -79,6 +79,10 @@ export interface GenerateRequest {
   seed?: number;
   referenceImages?: string[];
   negativePrompt?: string;
+  /** URL of an input image for img2img generation */
+  inputImageUrl?: string;
+  /** How much to deviate from the input image (0 = faithful, 1 = ignore input). Default ~0.8 */
+  promptStrength?: number;
   extra?: Record<string, unknown>;
 }
 

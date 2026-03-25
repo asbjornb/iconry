@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
-import { generateImage, pollPrediction, imageUrl, deleteImage, saveDrawing, listProjects } from "../lib/api";
+import { useState, useEffect, useRef } from "react";
+import { generateImage, pollPrediction, imageUrl, imageAbsoluteUrl, deleteImage, saveDrawing, listProjects, uploadImage } from "../lib/api";
 import type { GenerateRequest, GenerationJob, Project } from "@shared/types";
-import { ModelSelect } from "../components/ModelSelect";
+import { ModelSelect, MODEL_PRESETS } from "../components/ModelSelect";
 
 interface Props {
   onJobCreated: (job: GenerationJob) => void;
@@ -33,6 +33,13 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptCo
   const [projects, setProjects] = useState<Project[]>([]);
   const [saveMenuId, setSaveMenuId] = useState<string | null>(null);
 
+  // img2img state
+  const [inputImageKey, setInputImageKey] = useState<string | null>(null);
+  const [inputImagePreview, setInputImagePreview] = useState<string | null>(null);
+  const [promptStrength, setPromptStrength] = useState(0.65);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (initialPrompt) {
       setPrompt(initialPrompt);
@@ -45,12 +52,42 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptCo
     listProjects().then(setProjects).catch(() => {});
   }, []);
 
+  const currentModelSupportsImg2Img = MODEL_PRESETS.find((p) => p.id === model)?.supportsImg2Img ?? false;
+
+  async function handleFileSelect(file: File) {
+    if (!file.type.startsWith("image/")) return;
+    setUploading(true);
+    try {
+      // Show local preview immediately
+      const preview = URL.createObjectURL(file);
+      setInputImagePreview(preview);
+      // Upload to R2
+      const { key } = await uploadImage(file);
+      setInputImageKey(key);
+    } catch (e) {
+      setError(`Upload failed: ${(e as Error).message}`);
+      setInputImagePreview(null);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function handleClearInputImage() {
+    setInputImageKey(null);
+    setInputImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
   async function handleGenerate() {
     setLoading(true);
     setError("");
 
     try {
       const req: GenerateRequest = { prompt, provider: "replicate", model, size };
+      if (inputImageKey) {
+        req.inputImageUrl = imageAbsoluteUrl(inputImageKey);
+        req.promptStrength = promptStrength;
+      }
       const res = await generateImage(req);
 
       const result: ExplorerResult = {
@@ -178,14 +215,56 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptCo
           </div>
         </div>
 
+        <div className="img2img-row">
+          <div className="img2img-upload">
+            <label>Reference image (img2img)</label>
+            <div className="img2img-controls">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+              />
+              {inputImagePreview && (
+                <button className="danger" onClick={handleClearInputImage}>clear</button>
+              )}
+            </div>
+            {uploading && <span className="status-badge running">uploading...</span>}
+            {inputImagePreview && !currentModelSupportsImg2Img && (
+              <div className="warning-msg">
+                Current model may not support img2img. Try Flux Dev, Flux 1.1 Pro, or SD 3.5.
+              </div>
+            )}
+          </div>
+          {inputImagePreview && (
+            <>
+              <div className="img2img-preview">
+                <img src={inputImagePreview} alt="Reference" />
+              </div>
+              <div className="field">
+                <label>Prompt strength: {promptStrength.toFixed(2)}</label>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="1.0"
+                  step="0.05"
+                  value={promptStrength}
+                  onChange={(e) => setPromptStrength(parseFloat(e.target.value))}
+                />
+                <span className="hint">Low = closer to input image, High = more creative</span>
+              </div>
+            </>
+          )}
+        </div>
+
         <div className="prompt-row">
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Describe the icon you want to generate..."
           />
-          <button className="primary" onClick={handleGenerate} disabled={loading}>
-            {loading ? "..." : "Generate"}
+          <button className="primary" onClick={handleGenerate} disabled={loading || uploading}>
+            {loading ? "..." : inputImageKey ? "Generate (img2img)" : "Generate"}
           </button>
         </div>
 
