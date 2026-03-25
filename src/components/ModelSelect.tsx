@@ -8,6 +8,8 @@ export interface ModelPreset {
   cost?: string;
   /** Tags for filtering/grouping */
   tags: string[];
+  /** Whether this model supports image-to-image input */
+  supportsImg2Img?: boolean;
 }
 
 export const MODEL_PRESETS: ModelPreset[] = [
@@ -23,14 +25,16 @@ export const MODEL_PRESETS: ModelPreset[] = [
     label: "Flux 1.1 Pro",
     description: "Higher quality Flux. Better prompt adherence.",
     cost: "~$0.04",
-    tags: ["quality", "raster"],
+    tags: ["quality", "raster", "img2img"],
+    supportsImg2Img: true,
   },
   {
     id: "black-forest-labs/flux-dev",
     label: "Flux Dev",
     description: "Dev variant. Good quality, slower than Schnell.",
     cost: "~$0.025",
-    tags: ["quality", "raster"],
+    tags: ["quality", "raster", "img2img"],
+    supportsImg2Img: true,
   },
   {
     id: "recraft-ai/recraft-v3-svg",
@@ -51,7 +55,8 @@ export const MODEL_PRESETS: ModelPreset[] = [
     label: "SD 3.5 Large",
     description: "Stable Diffusion 3.5. Good general-purpose model.",
     cost: "~$0.035",
-    tags: ["quality", "raster"],
+    tags: ["quality", "raster", "img2img"],
+    supportsImg2Img: true,
   },
   {
     id: "ideogram-ai/ideogram-v2",

@@ -65,6 +65,28 @@ export function imageUrl(key: string): string {
   return `${BASE}/api/image/${encodeURIComponent(key)}`;
 }
 
+export async function uploadImage(file: File): Promise<{ key: string }> {
+  const res = await fetch(`${BASE}/api/upload`, {
+    method: "POST",
+    headers: {
+      "Content-Type": file.type || "image/png",
+      ...(authToken && { Authorization: `Bearer ${authToken}` }),
+    },
+    body: file,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`);
+  return data as { key: string };
+}
+
+/**
+ * Build the full public URL for an R2 image key.
+ * Used when we need an absolute URL (e.g. to pass to Replicate).
+ */
+export function imageAbsoluteUrl(key: string): string {
+  return `${window.location.origin}/api/image/${encodeURIComponent(key)}`;
+}
+
 export async function deleteImage(key: string): Promise<void> {
   await request<{ ok: boolean }>(`/api/image/${encodeURIComponent(key)}`, {
     method: "DELETE",

@@ -92,6 +92,14 @@ async function generateReplicate(
     ...(req.extra ?? {}),
   };
 
+  // img2img: pass input image and prompt strength to models that support it
+  if (req.inputImageUrl) {
+    input.image = req.inputImageUrl;
+    if (req.promptStrength !== undefined) {
+      input.prompt_strength = req.promptStrength;
+    }
+  }
+
   if (isFluxModel(req.model)) {
     // Flux models use aspect_ratio instead of width/height
     if (req.size) {
@@ -250,6 +258,27 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   // Auth check for all other API routes
   const authErr = checkAuth(request, env);
   if (authErr) return authErr;
+
+  // ── POST /api/upload — upload a reference image to R2 ─────────
+  if (path === "/api/upload" && request.method === "POST") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+
+    const contentType = request.headers.get("Content-Type") ?? "image/png";
+    if (!contentType.startsWith("image/")) {
+      return err("Only image uploads are supported", 400);
+    }
+
+    const key = `uploads/${Date.now()}-${generateId()}.${contentType.split("/")[1]?.replace("+xml", "") || "png"}`;
+    const body = await request.arrayBuffer();
+    if (body.byteLength === 0) return err("Empty upload", 400);
+
+    await env.ASSETS_BUCKET.put(key, body, {
+      httpMetadata: { contentType },
+    });
+
+    // Return the key — the client can build the full URL via imageUrl()
+    return json({ key });
+  }
 
   // ── GET /api/jobs — list stored images as jobs ─────────────────
   if (path === "/api/jobs" && request.method === "GET") {
