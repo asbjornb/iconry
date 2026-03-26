@@ -644,3 +644,357 @@ input:focus, textarea:focus, select:focus {
     max-height: 200px;
   }
 }
+
+/* ── Game Icons ─────────────────────────────────────────────────── */
+
+.gi-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-dim);
+}
+
+.gi-header {
+  display: grid;
+  gap: 8px;
+}
+
+.gi-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.gi-header-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.gi-summary {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.gi-count {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.gi-count:hover {
+  border-color: var(--accent);
+}
+
+.gi-pending { color: var(--text-dim); }
+.gi-generated { color: var(--warning); }
+.gi-approved { color: var(--success); }
+.gi-rejected { color: var(--danger); }
+
+.gi-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.gi-filters select {
+  width: auto;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.gi-filter-count {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.gi-bulk {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.gi-bulk button {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.gi-progress {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* Icon grid — responsive, mobile-first */
+.gi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.gi-card {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  position: relative;
+}
+
+.gi-card:hover {
+  border-color: var(--text-dim);
+}
+
+.gi-card-selected {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.gi-card-pending { border-left: 3px solid var(--border); }
+.gi-card-generated { border-left: 3px solid var(--warning); }
+.gi-card-approved { border-left: 3px solid var(--success); }
+.gi-card-rejected { border-left: 3px solid var(--danger); }
+
+.gi-card-select {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 2;
+}
+
+.gi-card-select input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.gi-card img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: repeating-conic-gradient(#222 0% 25%, #1a1a1a 0% 50%) 50% / 12px 12px;
+}
+
+.gi-card-empty {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--bg);
+}
+
+.gi-card-footer {
+  padding: 6px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+}
+
+.gi-card-name {
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gi-status {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.gi-status-pending { background: var(--border); color: var(--text-dim); }
+.gi-status-generated { background: rgba(243, 156, 18, 0.2); color: var(--warning); }
+.gi-status-approved { background: rgba(46, 204, 113, 0.2); color: var(--success); }
+.gi-status-rejected { background: rgba(231, 76, 60, 0.2); color: var(--danger); }
+
+/* Import panel */
+.gi-import {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+/* Detail panel */
+.gi-detail {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+}
+
+.gi-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.gi-detail-body {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 16px;
+}
+
+.gi-detail-image img {
+  width: 100%;
+  border-radius: var(--radius);
+  background: repeating-conic-gradient(#222 0% 25%, #1a1a1a 0% 50%) 50% / 16px 16px;
+}
+
+.gi-detail-info {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  font-size: 13px;
+}
+
+.gi-detail-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.gi-detail-actions button {
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+/* Chain context strip */
+.gi-detail-chain {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.gi-detail-chain > label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.gi-chain-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.gi-chain-item {
+  flex-shrink: 0;
+  width: 80px;
+  text-align: center;
+  font-size: 10px;
+  display: grid;
+  gap: 2px;
+}
+
+.gi-chain-item img {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: repeating-conic-gradient(#222 0% 25%, #1a1a1a 0% 50%) 50% / 10px 10px;
+}
+
+.gi-chain-placeholder {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--border);
+  background: var(--bg);
+}
+
+.gi-chain-current img,
+.gi-chain-current .gi-chain-placeholder {
+  border-color: var(--accent);
+}
+
+/* History */
+.gi-detail-history {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.gi-detail-history > label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.gi-history-list {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.gi-history-item {
+  flex-shrink: 0;
+  display: grid;
+  gap: 4px;
+  width: 100px;
+}
+
+.gi-history-item img {
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: repeating-conic-gradient(#222 0% 25%, #1a1a1a 0% 50%) 50% / 10px 10px;
+}
+
+.gi-history-item div {
+  display: grid;
+  gap: 1px;
+}
+
+@media (max-width: 700px) {
+  .gi-grid {
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 6px;
+  }
+
+  .gi-detail-body {
+    grid-template-columns: 1fr;
+  }
+
+  .gi-detail-image img {
+    max-width: 200px;
+  }
+
+  .gi-header-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gi-header-actions {
+    justify-content: stretch;
+  }
+
+  .gi-header-actions button {
+    flex: 1;
+  }
+}
