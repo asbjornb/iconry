@@ -9,3 +9,5 @@ mcp/dist/
 *.tsbuildinfo
 vite.config.d.ts
 vite.config.js
+shared/*.js
+shared/*.d.ts
