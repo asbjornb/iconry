@@ -166,6 +166,95 @@ export interface SavedDrawing {
   updatedAt: string;
 }
 
+// ── Game Icon Projects ────────────────────────────────────────────
+// Rich icon spec with chains, categories, and per-icon status tracking.
+// Designed for incremental generation workflows where you build up
+// a full icon set over time.
+
+export interface GameIconSpec {
+  /** Unique key — matches the game's enum value, used as filename */
+  id: string;
+  /** What the icon literally depicts */
+  object: string;
+  /** Art direction — composition, angle, lighting, key details */
+  description: string;
+  /** Where this icon appears in-game */
+  use: string;
+  /** Visual mood — maps to game phase color palette */
+  theme: string;
+  /** Visual grouping — icons in same category share style */
+  category: string;
+  /** Named generation chain — related items should look consistent */
+  chain: string | null;
+  /** "base" = generate first; "derived" = use base as img2img reference */
+  chainRole: "base" | "derived" | "standalone";
+  /** How this item visually differs from its chain base */
+  chainNote?: string;
+  /** Target render size (square, e.g. 64) */
+  size: number;
+  /** Freeform tags for filtering/batch generation */
+  tags: string[];
+}
+
+export interface GameStyleGuide {
+  approach: string;
+  resolution: string;
+  paletteConstraints: string[];
+  composition: string[];
+  consistency: string[];
+  phaseTinting: Record<string, string>;
+}
+
+export type GameIconStatus = "pending" | "generated" | "approved" | "rejected";
+
+export interface GameIconState {
+  /** References GameIconSpec.id */
+  specId: string;
+  status: GameIconStatus;
+  /** R2 key of the current image (latest approved or generated) */
+  currentImageKey?: string;
+  /** Model used to generate the current image */
+  currentModel?: string;
+  /** Prompt used to generate the current image */
+  currentPrompt?: string;
+  /** Every generation attempt */
+  history: GameIconHistoryEntry[];
+}
+
+export interface GameIconHistoryEntry {
+  imageKey: string;
+  model: string;
+  prompt: string;
+  timestamp: string;
+  /** Was this the one that got approved? */
+  approved: boolean;
+}
+
+export interface GameProject {
+  id: string;
+  name: string;
+  styleGuide: GameStyleGuide;
+  icons: GameIconSpec[];
+  /** Per-icon generation state — keyed by spec id for fast lookup */
+  states: Record<string, GameIconState>;
+  /** Default model for generation */
+  defaultModel: string;
+  /** Default size string (e.g. "64x64") */
+  defaultSize: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GameProjectSummary {
+  id: string;
+  name: string;
+  total: number;
+  pending: number;
+  generated: number;
+  approved: number;
+  rejected: number;
+}
+
 // ── Example pack for the tropical island game ───────────────────────
 
 export const EXAMPLE_PACK: PackSpec = {

@@ -1,4 +1,4 @@
-import type { GenerateRequest, GenerateResponse, BatchRequest, BatchResponse, GenerationJob, Project, ProjectRun, SavedDrawing } from "@shared/types";
+import type { GenerateRequest, GenerateResponse, BatchRequest, BatchResponse, GenerationJob, Project, ProjectRun, SavedDrawing, GameProject, GameProjectSummary, GameIconStatus } from "@shared/types";
 
 const BASE = import.meta.env.DEV ? "" : ""; // proxy in dev, same origin in prod
 
@@ -150,4 +150,60 @@ export async function updateSaved(id: string, data: { tags?: string[]; note?: st
 
 export async function removeSaved(id: string): Promise<void> {
   await request<{ ok: boolean }>(`/api/saved/${id}`, { method: "DELETE" });
+}
+
+// ── Game Projects ─────────────────────────────────────────────────
+
+export async function listGameProjects(): Promise<GameProjectSummary[]> {
+  const res = await request<{ projects: GameProjectSummary[] }>("/api/game-projects");
+  return res.projects;
+}
+
+export async function getGameProject(id: string): Promise<GameProject> {
+  return request<GameProject>(`/api/game-projects/${id}`);
+}
+
+export async function saveGameProject(project: GameProject): Promise<GameProject> {
+  return request<GameProject>(`/api/game-projects/${project.id}`, {
+    method: "PUT",
+    body: JSON.stringify(project),
+  });
+}
+
+export async function deleteGameProject(id: string): Promise<void> {
+  await request<{ ok: boolean }>(`/api/game-projects/${id}`, { method: "DELETE" });
+}
+
+export async function generateGameIcons(
+  projectId: string,
+  filter: {
+    ids?: string[];
+    chain?: string;
+    category?: string;
+    theme?: string;
+    model?: string;
+    onlyPending?: boolean;
+  }
+): Promise<{ results: Array<{ id: string; status: string; error?: string; imageKey?: string }> }> {
+  return request(`/api/game-projects/${projectId}/generate`, {
+    method: "POST",
+    body: JSON.stringify(filter),
+  });
+}
+
+export async function updateGameIconStatuses(
+  projectId: string,
+  updates: Array<{ iconId: string; status: GameIconStatus }>
+): Promise<void> {
+  await request<{ ok: boolean }>(`/api/game-projects/${projectId}/status`, {
+    method: "POST",
+    body: JSON.stringify({ updates }),
+  });
+}
+
+export async function exportGameIcons(
+  projectId: string,
+  status: string = "approved"
+): Promise<{ projectName: string; icons: Array<{ id: string; imageUrl: string; status: string }> }> {
+  return request(`/api/game-projects/${projectId}/export?status=${status}`);
 }

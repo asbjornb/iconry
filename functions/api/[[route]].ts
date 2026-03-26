@@ -7,7 +7,13 @@ import type {
   Project,
   ProjectRun,
   ProjectRunResult,
+  GameProject,
+  GameProjectSummary,
+  GameIconSpec,
+  GameIconState,
+  GameIconStatus,
 } from "../../shared/types";
+import { buildPrompt } from "../../shared/prompt-builder";
 
 interface Env {
   ASSETS_BUCKET: R2Bucket;
@@ -692,6 +698,303 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     });
 
     return json({ ok: true });
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // Game Projects — rich icon spec with per-icon status tracking
+  // ══════════════════════════════════════════════════════════════════
+
+  // ── GET /api/game-projects — list all game projects (summaries) ──
+  if (path === "/api/game-projects" && request.method === "GET") {
+    if (!env.ASSETS_BUCKET) return json({ projects: [] });
+
+    const projects: GameProjectSummary[] = [];
+    const listed = await env.ASSETS_BUCKET.list({ prefix: "game-projects/", limit: 500 });
+    for (const obj of listed.objects) {
+      if (!obj.key.endsWith(".json")) continue;
+      const data = await env.ASSETS_BUCKET.get(obj.key);
+      if (!data) continue;
+      try {
+        const gp = JSON.parse(await data.text()) as GameProject;
+        const states = Object.values(gp.states);
+        projects.push({
+          id: gp.id,
+          name: gp.name,
+          total: gp.icons.length,
+          pending: states.filter((s) => s.status === "pending").length,
+          generated: states.filter((s) => s.status === "generated").length,
+          approved: states.filter((s) => s.status === "approved").length,
+          rejected: states.filter((s) => s.status === "rejected").length,
+        });
+      } catch { /* skip malformed */ }
+    }
+    return json({ projects });
+  }
+
+  // ── GET /api/game-projects/:id — get full game project ──────────
+  if (path.match(/^\/api\/game-projects\/[^/]+$/) && request.method === "GET") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+    const id = path.replace("/api/game-projects/", "");
+    const data = await env.ASSETS_BUCKET.get(`game-projects/${id}.json`);
+    if (!data) return err("Game project not found", 404);
+    return json(JSON.parse(await data.text()));
+  }
+
+  // ── PUT /api/game-projects/:id — create or update (sync spec) ───
+  if (path.match(/^\/api\/game-projects\/[^/]+$/) && request.method === "PUT") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+
+    const incoming = (await request.json()) as GameProject;
+    const id = path.replace("/api/game-projects/", "");
+    incoming.id = id;
+
+    // Try to load existing to preserve states
+    const existing = await env.ASSETS_BUCKET.get(`game-projects/${id}.json`);
+    if (existing) {
+      try {
+        const old = JSON.parse(await existing.text()) as GameProject;
+        // Merge: keep existing states, add "pending" for new icons, remove stale
+        const mergedStates: Record<string, GameIconState> = {};
+        for (const icon of incoming.icons) {
+          mergedStates[icon.id] = old.states[icon.id] ?? {
+            specId: icon.id,
+            status: "pending" as GameIconStatus,
+            history: [],
+          };
+        }
+        incoming.states = mergedStates;
+      } catch { /* start fresh */ }
+    } else {
+      // Initialize all icons as pending
+      const states: Record<string, GameIconState> = {};
+      for (const icon of incoming.icons) {
+        states[icon.id] = {
+          specId: icon.id,
+          status: "pending",
+          history: [],
+        };
+      }
+      incoming.states = states;
+    }
+
+    incoming.updatedAt = new Date().toISOString();
+    if (!incoming.createdAt) incoming.createdAt = incoming.updatedAt;
+
+    await env.ASSETS_BUCKET.put(
+      `game-projects/${id}.json`,
+      JSON.stringify(incoming),
+      { httpMetadata: { contentType: "application/json" } }
+    );
+    return json(incoming);
+  }
+
+  // ── DELETE /api/game-projects/:id ───────────────────────────────
+  if (path.match(/^\/api\/game-projects\/[^/]+$/) && request.method === "DELETE") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+    const id = path.replace("/api/game-projects/", "");
+    await env.ASSETS_BUCKET.delete(`game-projects/${id}.json`);
+    return json({ ok: true });
+  }
+
+  // ── POST /api/game-projects/:id/generate — generate specific icons
+  // Body: { ids?: string[], chain?: string, category?: string, theme?: string, model?: string }
+  if (path.match(/^\/api\/game-projects\/[^/]+\/generate$/) && request.method === "POST") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+
+    const id = path.replace("/api/game-projects/", "").replace("/generate", "");
+    const projectData = await env.ASSETS_BUCKET.get(`game-projects/${id}.json`);
+    if (!projectData) return err("Game project not found", 404);
+
+    const project = JSON.parse(await projectData.text()) as GameProject;
+    const body = (await request.json()) as {
+      ids?: string[];
+      chain?: string;
+      category?: string;
+      theme?: string;
+      model?: string;
+      onlyPending?: boolean;
+    };
+
+    // Filter which icons to generate
+    let targets = project.icons;
+    if (body.ids) {
+      targets = targets.filter((i) => body.ids!.includes(i.id));
+    }
+    if (body.chain !== undefined) {
+      targets = targets.filter((i) => i.chain === body.chain);
+    }
+    if (body.category) {
+      targets = targets.filter((i) => i.category === body.category);
+    }
+    if (body.theme) {
+      targets = targets.filter((i) => i.theme === body.theme);
+    }
+    if (body.onlyPending) {
+      targets = targets.filter((i) => {
+        const state = project.states[i.id];
+        return !state || state.status === "pending" || state.status === "rejected";
+      });
+    }
+
+    if (targets.length === 0) {
+      return err("No matching icons to generate", 400);
+    }
+
+    // Order: bases first, then derived
+    const roleOrder = { base: 0, standalone: 1, derived: 2 };
+    targets.sort((a, b) => roleOrder[a.chainRole] - roleOrder[b.chainRole]);
+
+    const model = body.model ?? project.defaultModel;
+    const results: Array<{ id: string; status: string; error?: string; imageKey?: string }> = [];
+
+    for (const icon of targets) {
+      const prompt = buildPrompt(icon, project.styleGuide);
+      const size = `${icon.size}x${icon.size}`;
+
+      // For derived icons, check if base has an approved image for img2img
+      let inputImageUrl: string | undefined;
+      if (icon.chainRole === "derived" && icon.chain) {
+        const baseIcon = project.icons.find(
+          (i) => i.chain === icon.chain && i.chainRole === "base"
+        );
+        if (baseIcon) {
+          const baseState = project.states[baseIcon.id];
+          if (baseState?.currentImageKey) {
+            // Build absolute URL to the stored base image
+            inputImageUrl = `${url.origin}/api/image/${encodeURIComponent(baseState.currentImageKey)}`;
+          }
+        }
+      }
+
+      const req: GenerateRequest = {
+        prompt,
+        provider: "replicate",
+        model,
+        size,
+        ...(inputImageUrl && { inputImageUrl, promptStrength: 0.7 }),
+      };
+
+      const genResult = await generateReplicate(req, env);
+
+      // Poll if async
+      let finalResult = genResult;
+      if (genResult.status === "running" && genResult.id) {
+        for (let i = 0; i < 60; i++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          finalResult = await pollReplicate(genResult.id, env);
+          if (finalResult.status === "completed" || finalResult.status === "failed") break;
+        }
+      }
+
+      const now = new Date().toISOString();
+
+      if (finalResult.status === "completed" && finalResult.resultUrl) {
+        const key = `game/${id}/${icon.id}.png`;
+        const meta = {
+          prompt,
+          provider: "replicate",
+          model,
+          gameProject: id,
+          iconId: icon.id,
+        };
+        const stored = await storeImage(env, key, finalResult.resultUrl, meta);
+
+        // Update state
+        if (!project.states[icon.id]) {
+          project.states[icon.id] = { specId: icon.id, status: "pending", history: [] };
+        }
+        const state = project.states[icon.id];
+        state.status = "generated";
+        state.currentImageKey = stored ?? undefined;
+        state.currentModel = model;
+        state.currentPrompt = prompt;
+        state.history.push({
+          imageKey: stored ?? key,
+          model,
+          prompt,
+          timestamp: now,
+          approved: false,
+        });
+
+        results.push({ id: icon.id, status: "generated", imageKey: stored ?? undefined });
+      } else {
+        results.push({ id: icon.id, status: "failed", error: finalResult.error });
+      }
+    }
+
+    // Save updated project
+    project.updatedAt = new Date().toISOString();
+    await env.ASSETS_BUCKET.put(
+      `game-projects/${id}.json`,
+      JSON.stringify(project),
+      { httpMetadata: { contentType: "application/json" } }
+    );
+
+    return json({ results });
+  }
+
+  // ── POST /api/game-projects/:id/status — update icon statuses
+  // Body: { updates: Array<{ iconId: string, status: GameIconStatus }> }
+  if (path.match(/^\/api\/game-projects\/[^/]+\/status$/) && request.method === "POST") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+
+    const id = path.replace("/api/game-projects/", "").replace("/status", "");
+    const projectData = await env.ASSETS_BUCKET.get(`game-projects/${id}.json`);
+    if (!projectData) return err("Game project not found", 404);
+
+    const project = JSON.parse(await projectData.text()) as GameProject;
+    const { updates } = (await request.json()) as {
+      updates: Array<{ iconId: string; status: GameIconStatus }>;
+    };
+
+    for (const update of updates) {
+      const state = project.states[update.iconId];
+      if (!state) continue;
+      state.status = update.status;
+
+      // If approving, mark the current history entry as approved
+      if (update.status === "approved" && state.history.length > 0) {
+        // Clear previous approvals
+        for (const h of state.history) h.approved = false;
+        state.history[state.history.length - 1].approved = true;
+      }
+    }
+
+    project.updatedAt = new Date().toISOString();
+    await env.ASSETS_BUCKET.put(
+      `game-projects/${id}.json`,
+      JSON.stringify(project),
+      { httpMetadata: { contentType: "application/json" } }
+    );
+
+    return json({ ok: true, updated: updates.length });
+  }
+
+  // ── GET /api/game-projects/:id/export — download approved icons as ZIP
+  if (path.match(/^\/api\/game-projects\/[^/]+\/export$/) && request.method === "GET") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+
+    const id = path.replace("/api/game-projects/", "").replace("/export", "");
+    const projectData = await env.ASSETS_BUCKET.get(`game-projects/${id}.json`);
+    if (!projectData) return err("Game project not found", 404);
+
+    const project = JSON.parse(await projectData.text()) as GameProject;
+    const statusFilter = url.searchParams.get("status") ?? "approved";
+
+    // Return a manifest of downloadable icons (client-side can fetch each)
+    const icons: Array<{ id: string; imageUrl: string; status: string }> = [];
+    for (const icon of project.icons) {
+      const state = project.states[icon.id];
+      if (!state?.currentImageKey) continue;
+      if (statusFilter !== "all" && state.status !== statusFilter) continue;
+      icons.push({
+        id: icon.id,
+        imageUrl: `/api/image/${encodeURIComponent(state.currentImageKey)}`,
+        status: state.status,
+      });
+    }
+
+    return json({ projectName: project.name, icons });
   }
 
   return err("Not found", 404);
