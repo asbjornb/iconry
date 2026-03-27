@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { zipSync, strToU8 } from "fflate";
 import {
   listGameProjects,
   getGameProject,
@@ -258,32 +259,70 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
       return;
     }
 
-    // Build a manifest and trigger individual downloads
-    const manifest: Array<{ id: string; prompt: string; model: string; url: string }> = [];
-    for (const icon of approved) {
-      const state = project.states[icon.id]!;
-      manifest.push({
-        id: icon.id,
-        prompt: state.currentPrompt ?? "",
-        model: state.currentModel ?? "",
-        url: gameImageUrl(state.currentImageKey!),
-      });
-    }
+    setLoading(true);
+    setError("");
+    try {
+      // Fetch all approved images in parallel
+      const entries: Record<string, Uint8Array> = {};
+      const manifest: Array<{
+        id: string;
+        filename: string;
+        prompt: string;
+        model: string;
+        category: string;
+        object: string;
+        description: string;
+        theme: string;
+        size: number;
+        tags: string[];
+      }> = [];
 
-    // Download manifest as JSON
-    const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${project.name}-icons-manifest.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+      await Promise.all(
+        approved.map(async (icon) => {
+          const state = project.states[icon.id]!;
+          const res = await fetch(gameImageUrl(state.currentImageKey!));
+          if (!res.ok) throw new Error(`Failed to fetch image for ${icon.id}`);
+          const buf = await res.arrayBuffer();
+          const filename = `images/${icon.id}.png`;
+          entries[filename] = new Uint8Array(buf);
 
-    // Also trigger image downloads
-    for (const item of manifest) {
-      const link = document.createElement("a");
-      link.href = item.url;
-      link.download = `${item.id}.png`;
-      link.click();
+          manifest.push({
+            id: icon.id,
+            filename,
+            prompt: state.currentPrompt ?? "",
+            model: state.currentModel ?? "",
+            category: icon.category,
+            object: icon.object,
+            description: icon.description,
+            theme: icon.theme,
+            size: icon.size,
+            tags: icon.tags,
+          });
+        })
+      );
+
+      // Add manifest JSON
+      entries["manifest.json"] = strToU8(JSON.stringify(manifest, null, 2));
+
+      // Add per-icon prompt files for easy reference
+      for (const item of manifest) {
+        if (item.prompt) {
+          entries[`prompts/${item.id}.txt`] = strToU8(item.prompt);
+        }
+      }
+
+      // Build and download ZIP
+      const zip = zipSync(entries);
+      const blob = new Blob([zip.buffer as ArrayBuffer], { type: "application/zip" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${project.name}-icons.zip`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      setError(`Download failed: ${(e as Error).message}`);
+    } finally {
+      setLoading(false);
     }
   }
 
