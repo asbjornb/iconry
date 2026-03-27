@@ -27,10 +27,10 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Cache-busting revision — incremented after image uploads to force
+  // Cache-busting timestamp — updated after image uploads to force
   // the browser to fetch the new image even though the R2 key is unchanged.
-  const [imgRevision, setImgRevision] = useState(0);
-  const gameImageUrl = (key: string) => `${imageUrl(key)}?v=${imgRevision}`;
+  const [imgCacheBust, setImgCacheBust] = useState(() => Date.now());
+  const gameImageUrl = (key: string) => `${imageUrl(key)}?t=${imgCacheBust}`;
 
   // Filters
   const [filterStatus, setFilterStatus] = useState<GameIconStatus | "all">("all");
@@ -176,6 +176,7 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
       }
 
       // Refresh UI after each icon so the user sees progress
+      setImgCacheBust(Date.now());
       await loadProject(project.id);
     }
 
@@ -209,7 +210,7 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
     if (!project) return;
     try {
       await uploadGameIconImage(project.id, iconId, file);
-      setImgRevision((r) => r + 1);
+      setImgCacheBust(Date.now());
       await loadProject(project.id);
     } catch (e) {
       setError((e as Error).message);
