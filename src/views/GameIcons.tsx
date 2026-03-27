@@ -27,6 +27,11 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Cache-busting revision — incremented after image uploads to force
+  // the browser to fetch the new image even though the R2 key is unchanged.
+  const [imgRevision, setImgRevision] = useState(0);
+  const gameImageUrl = (key: string) => `${imageUrl(key)}?v=${imgRevision}`;
+
   // Filters
   const [filterStatus, setFilterStatus] = useState<GameIconStatus | "all">("all");
   const [filterChain, setFilterChain] = useState<string>("all");
@@ -204,6 +209,7 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
     if (!project) return;
     try {
       await uploadGameIconImage(project.id, iconId, file);
+      setImgRevision((r) => r + 1);
       await loadProject(project.id);
     } catch (e) {
       setError((e as Error).message);
@@ -247,7 +253,7 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
         id: icon.id,
         prompt: state.currentPrompt ?? "",
         model: state.currentModel ?? "",
-        url: imageUrl(state.currentImageKey!),
+        url: gameImageUrl(state.currentImageKey!),
       });
     }
 
@@ -426,7 +432,7 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
                 <input type="checkbox" checked={selected.has(icon.id)} readOnly />
               </div>
               {state?.currentImageKey ? (
-                <img src={imageUrl(state.currentImageKey)} alt={icon.id} />
+                <img src={gameImageUrl(state.currentImageKey)} alt={icon.id} />
               ) : (
                 <div className="gi-card-empty">
                   <span>{icon.object}</span>
@@ -557,7 +563,7 @@ function IconDetail({
         {/* Image */}
         <div className="gi-detail-image">
           {state?.currentImageKey ? (
-            <img src={imageUrl(state.currentImageKey)} alt={icon.id} />
+            <img src={gameImageUrl(state.currentImageKey)} alt={icon.id} />
           ) : (
             <div className="gi-card-empty" style={{ height: 200 }}>
               <span>not yet generated</span>
@@ -627,7 +633,7 @@ function IconDetail({
         )}
         {state?.currentImageKey && (
           <a
-            href={imageUrl(state.currentImageKey)}
+            href={gameImageUrl(state.currentImageKey)}
             download={`${icon.id}.png`}
             style={{ display: "contents" }}
           >
@@ -664,7 +670,7 @@ function IconDetail({
                 return (
                   <div key={sibling.id} className={`gi-chain-item ${sibling.id === icon.id ? "gi-chain-current" : ""}`}>
                     {sibState?.currentImageKey ? (
-                      <img src={imageUrl(sibState.currentImageKey)} alt={sibling.id} />
+                      <img src={gameImageUrl(sibState.currentImageKey)} alt={sibling.id} />
                     ) : (
                       <div className="gi-chain-placeholder" />
                     )}
@@ -686,7 +692,7 @@ function IconDetail({
           <div className="gi-history-list">
             {[...state.history].reverse().map((h, i) => (
               <div key={i} className="gi-history-item">
-                <img src={imageUrl(h.imageKey)} alt={`attempt ${state.history.length - i}`} />
+                <img src={gameImageUrl(h.imageKey)} alt={`attempt ${state.history.length - i}`} />
                 <div>
                   <span style={{ fontSize: 11 }}>
                     {new Date(h.timestamp).toLocaleString()}
