@@ -152,34 +152,28 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
     setGenerating(true);
     setError("");
 
-    // Process in small batches to avoid Cloudflare Worker timeout
-    const BATCH_SIZE = 3;
-    const allResults: Array<{ id: string; status: string; error?: string; imageKey?: string }> = [];
+    // Process one icon at a time to avoid Cloudflare Worker timeout
+    // and to persist progress incrementally (important on mobile where
+    // the screen may close at any time).
     let ok = 0;
     let fail = 0;
 
-    for (let i = 0; i < targets.length; i += BATCH_SIZE) {
-      const batch = targets.slice(i, i + BATCH_SIZE);
-      setGenProgress(`Generating ${i + 1}–${Math.min(i + batch.length, targets.length)} of ${targets.length} (${ok} done, ${fail} failed)...`);
+    for (let i = 0; i < targets.length; i++) {
+      setGenProgress(`Generating ${i + 1} of ${targets.length} (${ok} done, ${fail} failed)...`);
 
       try {
-        const res = await generateGameIcons(project.id, { ids: batch });
-        for (const r of res.results) {
-          allResults.push(r);
-          if (r.status === "generated") ok++;
-          else fail++;
-        }
-      } catch (e) {
-        // Mark entire batch as failed, continue with next batch
-        fail += batch.length;
-        for (const id of batch) {
-          allResults.push({ id, status: "failed", error: (e as Error).message });
-        }
+        const res = await generateGameIcons(project.id, { ids: [targets[i]] });
+        if (res.results[0]?.status === "generated") ok++;
+        else fail++;
+      } catch {
+        fail++;
       }
+
+      // Refresh UI after each icon so the user sees progress
+      await loadProject(project.id);
     }
 
     setGenProgress(`Done: ${ok} generated, ${fail} failed`);
-    await loadProject(project.id);
     setGenerating(false);
   }
 
