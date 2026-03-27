@@ -201,6 +201,35 @@ export async function updateGameIconStatuses(
   });
 }
 
+export async function uploadGameIconImage(
+  projectId: string,
+  iconId: string,
+  file: File
+): Promise<{ ok: boolean; imageKey: string }> {
+  const res = await fetch(`${BASE}/api/game-projects/${projectId}/icons/${encodeURIComponent(iconId)}/upload`, {
+    method: "POST",
+    headers: {
+      "Content-Type": file.type || "image/png",
+      ...(authToken && { Authorization: `Bearer ${authToken}` }),
+    },
+    body: file,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`);
+  return data as { ok: boolean; imageKey: string };
+}
+
+export async function useImageForGameIcon(
+  projectId: string,
+  iconId: string,
+  imageKey: string
+): Promise<{ ok: boolean; imageKey: string }> {
+  return request(`/api/game-projects/${projectId}/icons/${encodeURIComponent(iconId)}/use-image`, {
+    method: "POST",
+    body: JSON.stringify({ imageKey }),
+  });
+}
+
 export async function exportGameIcons(
   projectId: string,
   status: string = "approved"

@@ -22,10 +22,12 @@ export function App() {
   const [jobs, setJobs] = useState<GenerationJob[]>([]);
   const [explorePrompt, setExplorePrompt] = useState<string | null>(null);
   const [exploreModel, setExploreModel] = useState<string | null>(null);
+  const [exploreGameIconContext, setExploreGameIconContext] = useState<{ projectId: string; iconId: string } | null>(null);
 
-  const sendToExplore = (prompt: string, model?: string) => {
+  const sendToExplore = (prompt: string, model?: string, gameIconContext?: { projectId: string; iconId: string }) => {
     setExplorePrompt(prompt);
     if (model) setExploreModel(model);
+    setExploreGameIconContext(gameIconContext ?? null);
     setTab("explore");
   };
 
@@ -76,7 +78,7 @@ export function App() {
         </div>
       </div>
 
-      {tab === "explore" && <Explorer onJobCreated={(j) => addJobs([j])} initialPrompt={explorePrompt} initialModel={exploreModel} onPromptConsumed={() => { setExplorePrompt(null); setExploreModel(null); }} />}
+      {tab === "explore" && <Explorer onJobCreated={(j) => addJobs([j])} initialPrompt={explorePrompt} initialModel={exploreModel} gameIconContext={exploreGameIconContext} onPromptConsumed={() => { setExplorePrompt(null); setExploreModel(null); }} />}
       {tab === "game" && <GameIcons onSendToExplore={sendToExplore} />}
       {tab === "projects" && <Projects onSendToExplore={sendToExplore} />}
       {tab === "batch" && <BatchEditor onJobsCreated={addJobs} />}

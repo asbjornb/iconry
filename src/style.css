@@ -894,6 +894,36 @@ input:focus, textarea:focus, select:focus {
   font-size: 12px;
 }
 
+.gi-upload-btn {
+  display: inline-block;
+  padding: 6px 14px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  text-align: center;
+}
+.gi-upload-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.gi-explore-banner {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+}
+.gi-explore-banner button {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
 /* Chain context strip */
 .gi-detail-chain {
   border-top: 1px solid var(--border);

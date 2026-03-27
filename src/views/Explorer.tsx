@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { generateImage, pollPrediction, imageUrl, imageAbsoluteUrl, deleteImage, saveDrawing, listProjects, uploadImage } from "../lib/api";
+import { generateImage, pollPrediction, imageUrl, imageAbsoluteUrl, deleteImage, saveDrawing, listProjects, uploadImage, useImageForGameIcon } from "../lib/api";
 import type { GenerateRequest, GenerationJob, Project } from "@shared/types";
 import { ModelSelect, MODEL_PRESETS } from "../components/ModelSelect";
 
@@ -7,6 +7,7 @@ interface Props {
   onJobCreated: (job: GenerationJob) => void;
   initialPrompt?: string | null;
   initialModel?: string | null;
+  gameIconContext?: { projectId: string; iconId: string } | null;
   onPromptConsumed?: () => void;
 }
 
@@ -19,9 +20,10 @@ interface ExplorerResult {
   storedKey?: string;
   error?: string;
   saved?: boolean;
+  usedForGameIcon?: boolean;
 }
 
-export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptConsumed }: Props) {
+export function Explorer({ onJobCreated, initialPrompt, initialModel, gameIconContext, onPromptConsumed }: Props) {
   const [prompt, setPrompt] = useState(
     "minimal flat icon, game asset, tropical island theme, clean edges, transparent background, a coconut"
   );
@@ -40,10 +42,14 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptCo
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Track which game icon we're exploring for (if any)
+  const [activeGameIcon, setActiveGameIcon] = useState<{ projectId: string; iconId: string } | null>(null);
+
   useEffect(() => {
     if (initialPrompt) {
       setPrompt(initialPrompt);
       if (initialModel) setModel(initialModel);
+      if (gameIconContext) setActiveGameIcon(gameIconContext);
       onPromptConsumed?.();
     }
   }, [initialPrompt]);
@@ -172,6 +178,16 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptCo
     }
   }
 
+  async function handleUseForGameIcon(r: ExplorerResult) {
+    if (!activeGameIcon || !r.storedKey) return;
+    try {
+      await useImageForGameIcon(activeGameIcon.projectId, activeGameIcon.iconId, r.storedKey);
+      setResults((prev) => prev.map((x) => (x.id === r.id ? { ...x, usedForGameIcon: true } : x)));
+    } catch (e) {
+      setError(`Failed to use for game icon: ${(e as Error).message}`);
+    }
+  }
+
   async function handleDeleteResult(r: ExplorerResult) {
     if (r.storedKey) {
       try {
@@ -269,6 +285,12 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptCo
         </div>
 
         {error && <div className="error-msg">{error}</div>}
+        {activeGameIcon && (
+          <div className="gi-explore-banner">
+            Exploring for game icon: <strong>{activeGameIcon.iconId}</strong>
+            <button onClick={() => setActiveGameIcon(null)} style={{ marginLeft: 8 }}>dismiss</button>
+          </div>
+        )}
       </div>
 
       {results.length === 0 ? (
@@ -313,6 +335,16 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, onPromptCo
                       style={{ color: "var(--success)", borderColor: "var(--success)" }}
                     >
                       saved
+                    </button>
+                  )}
+                  {r.status === "completed" && r.storedKey && activeGameIcon && !r.usedForGameIcon && (
+                    <button className="primary" onClick={() => handleUseForGameIcon(r)}>
+                      use for {activeGameIcon.iconId}
+                    </button>
+                  )}
+                  {r.usedForGameIcon && (
+                    <button disabled style={{ color: "var(--success)", borderColor: "var(--success)" }}>
+                      used for icon
                     </button>
                   )}
                   {r.resultUrl && (
