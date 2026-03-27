@@ -829,6 +829,22 @@ input:focus, textarea:focus, select:focus {
   padding: 16px;
 }
 
+.gi-import .file-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  font-family: var(--font);
+  font-size: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text);
+}
+.gi-import .file-upload-btn:hover {
+  border-color: var(--accent);
+}
+
 /* Detail panel */
 .gi-detail {
   background: var(--surface);
