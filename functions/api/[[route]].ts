@@ -252,10 +252,18 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const obj = await env.ASSETS_BUCKET.get(key);
     if (!obj) return err("Not found", 404);
 
+    // Game icon images are mutable (overwritten on re-upload), so use
+    // no-cache to force revalidation.  Other images are immutable
+    // (unique key per generation) and can be cached aggressively.
+    const isMutable = key.startsWith("game/");
+    const cacheControl = isMutable
+      ? "no-cache"
+      : "public, max-age=31536000";
+
     return new Response(obj.body, {
       headers: {
         "Content-Type": obj.httpMetadata?.contentType ?? "image/png",
-        "Cache-Control": "public, max-age=31536000",
+        "Cache-Control": cacheControl,
         "Access-Control-Allow-Origin": "*",
       },
     });
