@@ -252,21 +252,25 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const obj = await env.ASSETS_BUCKET.get(key);
     if (!obj) return err("Not found", 404);
 
-    // Game icon images are mutable (overwritten on re-upload), so use
-    // no-cache to force revalidation.  Other images are immutable
-    // (unique key per generation) and can be cached aggressively.
+    // Game icon images are mutable (overwritten on re-upload), so
+    // prevent all caching.  Other images are immutable (unique key per
+    // generation) and can be cached aggressively.
     const isMutable = key.startsWith("game/");
     const cacheControl = isMutable
-      ? "no-cache"
+      ? "no-store, must-revalidate"
       : "public, max-age=31536000";
 
-    return new Response(obj.body, {
-      headers: {
-        "Content-Type": obj.httpMetadata?.contentType ?? "image/png",
-        "Cache-Control": cacheControl,
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
+    const headers: Record<string, string> = {
+      "Content-Type": obj.httpMetadata?.contentType ?? "image/png",
+      "Cache-Control": cacheControl,
+      "Access-Control-Allow-Origin": "*",
+    };
+    // For mutable images, also prevent Cloudflare edge caching
+    if (isMutable) {
+      headers["CDN-Cache-Control"] = "no-store";
+    }
+
+    return new Response(obj.body, { headers });
   }
 
   // Auth check for all other API routes
