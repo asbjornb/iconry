@@ -996,6 +996,18 @@ input:focus, textarea:focus, select:focus {
     gap: 6px;
   }
 
+  .gi-card-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 4px 6px;
+  }
+
+  .gi-card-name {
+    font-size: 11px;
+    max-width: 100%;
+  }
+
   .gi-detail-body {
     grid-template-columns: 1fr;
   }
