@@ -12,6 +12,7 @@
     "deploy": "npm run build && wrangler pages deploy dist --project-name=iconry"
   },
   "dependencies": {
+    "fflate": "^0.8.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.0.0"
