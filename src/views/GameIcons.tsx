@@ -6,6 +6,7 @@ import {
   generateGameIcons,
   updateGameIconStatuses,
   uploadGameIconImage,
+  useImageForGameIcon,
   imageUrl,
 } from "../lib/api";
 import { ModelSelect } from "../components/ModelSelect";
@@ -200,6 +201,17 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
     if (!project) return;
     try {
       await updateGameIconStatuses(project.id, [{ iconId, status }]);
+      await loadProject(project.id);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function handleRestoreImage(iconId: string, imageKey: string) {
+    if (!project) return;
+    try {
+      await useImageForGameIcon(project.id, iconId, imageKey);
+      setImgCacheBust(Date.now());
       await loadProject(project.id);
     } catch (e) {
       setError((e as Error).message);
@@ -460,6 +472,7 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
           onStatus={(id, s) => handleSingleStatus(id, s)}
           onExplore={onSendToExplore}
           onUpload={handleUploadImage}
+          onRestore={handleRestoreImage}
           generating={generating}
         />
       )}
@@ -533,6 +546,7 @@ function IconDetail({
   onStatus,
   onExplore,
   onUpload,
+  onRestore,
   generating,
 }: {
   icon: GameIconSpec;
@@ -544,6 +558,7 @@ function IconDetail({
   onStatus: (id: string, status: GameIconStatus) => void;
   onExplore: (prompt: string, model?: string, gameIconContext?: { projectId: string; iconId: string }, inputImageKey?: string) => void;
   onUpload: (iconId: string, file: File) => void;
+  onRestore: (iconId: string, imageKey: string) => void;
   generating: boolean;
 }) {
   const status = state?.status ?? "pending";
@@ -709,18 +724,31 @@ function IconDetail({
         <div className="gi-detail-history">
           <label>Generation History ({state.history.length})</label>
           <div className="gi-history-list">
-            {[...state.history].reverse().map((h, i) => (
-              <div key={i} className="gi-history-item">
-                <img src={gameImageUrl(h.imageKey)} alt={`attempt ${state.history.length - i}`} />
-                <div>
-                  <span style={{ fontSize: 11 }}>
-                    {new Date(h.timestamp).toLocaleString()}
-                    {h.approved && <strong style={{ color: "var(--success)", marginLeft: 6 }}>approved</strong>}
-                  </span>
-                  <span style={{ fontSize: 10, color: "var(--text-dim)" }}>{h.model}</span>
+            {[...state.history].reverse().map((h, i) => {
+              const isCurrent = h.imageKey === state.currentImageKey;
+              return (
+                <div key={i} className="gi-history-item">
+                  <img src={gameImageUrl(h.imageKey)} alt={`attempt ${state.history.length - i}`} />
+                  <div>
+                    <span style={{ fontSize: 11 }}>
+                      {new Date(h.timestamp).toLocaleString()}
+                      {h.approved && <strong style={{ color: "var(--success)", marginLeft: 6 }}>approved</strong>}
+                      {isCurrent && <strong style={{ color: "var(--accent)", marginLeft: 6 }}>current</strong>}
+                    </span>
+                    <span style={{ fontSize: 10, color: "var(--text-dim)" }}>{h.model}</span>
+                  </div>
+                  {!isCurrent && (
+                    <button
+                      style={{ fontSize: 10, padding: "2px 6px" }}
+                      title="Restore this version"
+                      onClick={() => onRestore(icon.id, h.imageKey)}
+                    >
+                      Restore
+                    </button>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
