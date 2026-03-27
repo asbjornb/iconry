@@ -782,7 +782,26 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const id = path.replace("/api/game-projects/", "");
     const data = await env.ASSETS_BUCKET.get(`game-projects/${id}.json`);
     if (!data) return err("Game project not found", 404);
-    return json(JSON.parse(await data.text()));
+    const project = JSON.parse(await data.text()) as GameProject;
+
+    // Clean up legacy duplicate history entries on read
+    let dirty = false;
+    for (const state of Object.values(project.states)) {
+      const cleaned = deduplicateHistory(state.history);
+      if (cleaned.length !== state.history.length) {
+        state.history = cleaned;
+        dirty = true;
+      }
+    }
+    if (dirty) {
+      await env.ASSETS_BUCKET.put(
+        `game-projects/${id}.json`,
+        JSON.stringify(project),
+        { httpMetadata: { contentType: "application/json" } }
+      );
+    }
+
+    return json(project);
   }
 
   // ── PUT /api/game-projects/:id — create or update (sync spec) ───
