@@ -18,7 +18,7 @@ import type {
 } from "@shared/types";
 
 interface GameIconsProps {
-  onSendToExplore: (prompt: string, model?: string, gameIconContext?: { projectId: string; iconId: string }) => void;
+  onSendToExplore: (prompt: string, model?: string, gameIconContext?: { projectId: string; iconId: string }, inputImageKey?: string) => void;
 }
 
 export function GameIcons({ onSendToExplore }: GameIconsProps) {
@@ -538,7 +538,7 @@ function IconDetail({
   onClose: () => void;
   onGenerate: (id: string) => void;
   onStatus: (id: string, status: GameIconStatus) => void;
-  onExplore: (prompt: string, model?: string, gameIconContext?: { projectId: string; iconId: string }) => void;
+  onExplore: (prompt: string, model?: string, gameIconContext?: { projectId: string; iconId: string }, inputImageKey?: string) => void;
   onUpload: (iconId: string, file: File) => void;
   generating: boolean;
 }) {
@@ -627,7 +627,22 @@ function IconDetail({
           <button onClick={() => onStatus(icon.id, "rejected")}>reject</button>
         )}
         {state?.currentPrompt && (
-          <button onClick={() => onExplore(state.currentPrompt!, state.currentModel, { projectId: project.id, iconId: icon.id })}>
+          <button onClick={() => {
+            // For chain icons, pass the base icon's image as input for img2img
+            let inputImageKey: string | undefined;
+            if (icon.chain && icon.chainRole === "derived") {
+              const baseIcon = project.icons.find(
+                (i) => i.chain === icon.chain && i.chainRole === "base"
+              );
+              if (baseIcon) {
+                const baseState = project.states[baseIcon.id];
+                if (baseState?.currentImageKey) {
+                  inputImageKey = baseState.currentImageKey;
+                }
+              }
+            }
+            onExplore(state.currentPrompt!, state.currentModel, { projectId: project.id, iconId: icon.id }, inputImageKey);
+          }}>
             explore in editor
           </button>
         )}
