@@ -28,6 +28,7 @@ function json(data: unknown, status = 200) {
     status,
     headers: {
       "Content-Type": "application/json",
+      "Cache-Control": "no-store",
       "Access-Control-Allow-Origin": "*",
     },
   });

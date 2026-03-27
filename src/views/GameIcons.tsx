@@ -454,6 +454,7 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
           icon={detail}
           state={detailState}
           project={project!}
+          gameImageUrl={gameImageUrl}
           onClose={() => setDetailIcon(null)}
           onGenerate={(id) => handleGenerate([id])}
           onStatus={(id, s) => handleSingleStatus(id, s)}
@@ -526,6 +527,7 @@ function IconDetail({
   icon,
   state,
   project,
+  gameImageUrl,
   onClose,
   onGenerate,
   onStatus,
@@ -536,6 +538,7 @@ function IconDetail({
   icon: GameIconSpec;
   state: GameIconState | undefined;
   project: GameProject;
+  gameImageUrl: (key: string) => string;
   onClose: () => void;
   onGenerate: (id: string) => void;
   onStatus: (id: string, status: GameIconStatus) => void;
