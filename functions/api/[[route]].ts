@@ -933,6 +933,137 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     return json({ results });
   }
 
+  // ── POST /api/game-projects/:id/icons/:iconId/upload — upload custom image for a game icon
+  // Body: raw image bytes (Content-Type: image/*)
+  const uploadMatch = path.match(/^\/api\/game-projects\/([^/]+)\/icons\/([^/]+)\/upload$/);
+  if (uploadMatch && request.method === "POST") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+
+    const projectId = uploadMatch[1];
+    const iconId = decodeURIComponent(uploadMatch[2]);
+
+    const contentType = request.headers.get("Content-Type") ?? "image/png";
+    if (!contentType.startsWith("image/")) {
+      return err("Only image uploads are supported", 400);
+    }
+
+    const body = await request.arrayBuffer();
+    if (body.byteLength === 0) return err("Empty upload", 400);
+
+    // Load project
+    const projectData = await env.ASSETS_BUCKET.get(`game-projects/${projectId}.json`);
+    if (!projectData) return err("Game project not found", 404);
+    const project = JSON.parse(await projectData.text()) as GameProject;
+
+    // Verify icon exists
+    const iconSpec = project.icons.find((i) => i.id === iconId);
+    if (!iconSpec) return err("Icon not found in project", 404);
+
+    // Store image at game/{projectId}/{iconId}.png
+    const key = `game/${projectId}/${iconId}.png`;
+    await env.ASSETS_BUCKET.put(key, body, {
+      httpMetadata: { contentType },
+      customMetadata: {
+        gameProject: projectId,
+        iconId,
+        source: "upload",
+      },
+    });
+
+    // Update icon state
+    const now = new Date().toISOString();
+    if (!project.states[iconId]) {
+      project.states[iconId] = { specId: iconId, status: "pending", history: [] };
+    }
+    const state = project.states[iconId];
+    state.status = "generated";
+    state.currentImageKey = key;
+    state.currentModel = "upload";
+    state.currentPrompt = "(custom upload)";
+    state.history.push({
+      imageKey: key,
+      model: "upload",
+      prompt: "(custom upload)",
+      timestamp: now,
+      approved: false,
+    });
+
+    project.updatedAt = now;
+    await env.ASSETS_BUCKET.put(
+      `game-projects/${projectId}.json`,
+      JSON.stringify(project),
+      { httpMetadata: { contentType: "application/json" } }
+    );
+
+    return json({ ok: true, imageKey: key });
+  }
+
+  // ── POST /api/game-projects/:id/icons/:iconId/use-image — assign an existing R2 image to a game icon
+  // Body: { imageKey: string }
+  const useImageMatch = path.match(/^\/api\/game-projects\/([^/]+)\/icons\/([^/]+)\/use-image$/);
+  if (useImageMatch && request.method === "POST") {
+    if (!env.ASSETS_BUCKET) return err("R2 not configured", 500);
+
+    const projectId = useImageMatch[1];
+    const iconId = decodeURIComponent(useImageMatch[2]);
+
+    const { imageKey } = (await request.json()) as { imageKey: string };
+    if (!imageKey) return err("imageKey is required", 400);
+
+    // Verify the source image exists
+    const sourceImage = await env.ASSETS_BUCKET.get(imageKey);
+    if (!sourceImage) return err("Source image not found", 404);
+
+    // Load project
+    const projectData = await env.ASSETS_BUCKET.get(`game-projects/${projectId}.json`);
+    if (!projectData) return err("Game project not found", 404);
+    const project = JSON.parse(await projectData.text()) as GameProject;
+
+    // Verify icon exists
+    const iconSpec = project.icons.find((i) => i.id === iconId);
+    if (!iconSpec) return err("Icon not found in project", 404);
+
+    // Copy image to game icon path
+    const destKey = `game/${projectId}/${iconId}.png`;
+    const sourceBody = await sourceImage.arrayBuffer();
+    await env.ASSETS_BUCKET.put(destKey, sourceBody, {
+      httpMetadata: { contentType: sourceImage.httpMetadata?.contentType ?? "image/png" },
+      customMetadata: {
+        gameProject: projectId,
+        iconId,
+        source: "explorer",
+        sourceKey: imageKey,
+      },
+    });
+
+    // Update icon state
+    const now = new Date().toISOString();
+    if (!project.states[iconId]) {
+      project.states[iconId] = { specId: iconId, status: "pending", history: [] };
+    }
+    const state = project.states[iconId];
+    state.status = "generated";
+    state.currentImageKey = destKey;
+    state.currentModel = "explorer";
+    state.currentPrompt = "(from explorer)";
+    state.history.push({
+      imageKey: destKey,
+      model: "explorer",
+      prompt: "(from explorer)",
+      timestamp: now,
+      approved: false,
+    });
+
+    project.updatedAt = now;
+    await env.ASSETS_BUCKET.put(
+      `game-projects/${projectId}.json`,
+      JSON.stringify(project),
+      { httpMetadata: { contentType: "application/json" } }
+    );
+
+    return json({ ok: true, imageKey: destKey });
+  }
+
   // ── POST /api/game-projects/:id/status — update icon statuses
   // Body: { updates: Array<{ iconId: string, status: GameIconStatus }> }
   if (path.match(/^\/api\/game-projects\/[^/]+\/status$/) && request.method === "POST") {

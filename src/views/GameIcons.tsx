@@ -5,6 +5,7 @@ import {
   saveGameProject,
   generateGameIcons,
   updateGameIconStatuses,
+  uploadGameIconImage,
   imageUrl,
 } from "../lib/api";
 import { ModelSelect } from "../components/ModelSelect";
@@ -17,7 +18,7 @@ import type {
 } from "@shared/types";
 
 interface GameIconsProps {
-  onSendToExplore: (prompt: string, model?: string) => void;
+  onSendToExplore: (prompt: string, model?: string, gameIconContext?: { projectId: string; iconId: string }) => void;
 }
 
 export function GameIcons({ onSendToExplore }: GameIconsProps) {
@@ -193,6 +194,16 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
     if (!project) return;
     try {
       await updateGameIconStatuses(project.id, [{ iconId, status }]);
+      await loadProject(project.id);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function handleUploadImage(iconId: string, file: File) {
+    if (!project) return;
+    try {
+      await uploadGameIconImage(project.id, iconId, file);
       await loadProject(project.id);
     } catch (e) {
       setError((e as Error).message);
@@ -440,6 +451,7 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
           onGenerate={(id) => handleGenerate([id])}
           onStatus={(id, s) => handleSingleStatus(id, s)}
           onExplore={onSendToExplore}
+          onUpload={handleUploadImage}
           generating={generating}
         />
       )}
@@ -511,6 +523,7 @@ function IconDetail({
   onGenerate,
   onStatus,
   onExplore,
+  onUpload,
   generating,
 }: {
   icon: GameIconSpec;
@@ -519,7 +532,8 @@ function IconDetail({
   onClose: () => void;
   onGenerate: (id: string) => void;
   onStatus: (id: string, status: GameIconStatus) => void;
-  onExplore: (prompt: string, model?: string) => void;
+  onExplore: (prompt: string, model?: string, gameIconContext?: { projectId: string; iconId: string }) => void;
+  onUpload: (iconId: string, file: File) => void;
   generating: boolean;
 }) {
   const status = state?.status ?? "pending";
@@ -607,7 +621,7 @@ function IconDetail({
           <button onClick={() => onStatus(icon.id, "rejected")}>reject</button>
         )}
         {state?.currentPrompt && (
-          <button onClick={() => onExplore(state.currentPrompt!, state.currentModel)}>
+          <button onClick={() => onExplore(state.currentPrompt!, state.currentModel, { projectId: project.id, iconId: icon.id })}>
             explore in editor
           </button>
         )}
@@ -620,6 +634,19 @@ function IconDetail({
             <button>download</button>
           </a>
         )}
+        <label className="gi-upload-btn">
+          upload image
+          <input
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onUpload(icon.id, file);
+              e.target.value = "";
+            }}
+          />
+        </label>
       </div>
 
       {/* Chain context */}
