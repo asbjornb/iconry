@@ -150,20 +150,31 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
     if (!window.confirm(`Generate ${targets.length} icon(s)?\nEstimated cost: ~$${cost.toFixed(3)}`)) return;
 
     setGenerating(true);
-    setGenProgress(`Generating ${targets.length} icon(s)...`);
     setError("");
 
-    try {
-      const res = await generateGameIcons(project.id, { ids: targets });
-      const ok = res.results.filter((r) => r.status === "generated").length;
-      const fail = res.results.filter((r) => r.status === "failed").length;
-      setGenProgress(`Done: ${ok} generated, ${fail} failed`);
+    // Process one icon at a time to avoid Cloudflare Worker timeout
+    // and to persist progress incrementally (important on mobile where
+    // the screen may close at any time).
+    let ok = 0;
+    let fail = 0;
+
+    for (let i = 0; i < targets.length; i++) {
+      setGenProgress(`Generating ${i + 1} of ${targets.length} (${ok} done, ${fail} failed)...`);
+
+      try {
+        const res = await generateGameIcons(project.id, { ids: [targets[i]] });
+        if (res.results[0]?.status === "generated") ok++;
+        else fail++;
+      } catch {
+        fail++;
+      }
+
+      // Refresh UI after each icon so the user sees progress
       await loadProject(project.id);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setGenerating(false);
     }
+
+    setGenProgress(`Done: ${ok} generated, ${fail} failed`);
+    setGenerating(false);
   }
 
   async function handleBulkStatus(status: GameIconStatus) {
