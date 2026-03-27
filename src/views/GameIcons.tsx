@@ -150,20 +150,37 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
     if (!window.confirm(`Generate ${targets.length} icon(s)?\nEstimated cost: ~$${cost.toFixed(3)}`)) return;
 
     setGenerating(true);
-    setGenProgress(`Generating ${targets.length} icon(s)...`);
     setError("");
 
-    try {
-      const res = await generateGameIcons(project.id, { ids: targets });
-      const ok = res.results.filter((r) => r.status === "generated").length;
-      const fail = res.results.filter((r) => r.status === "failed").length;
-      setGenProgress(`Done: ${ok} generated, ${fail} failed`);
-      await loadProject(project.id);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setGenerating(false);
+    // Process in small batches to avoid Cloudflare Worker timeout
+    const BATCH_SIZE = 3;
+    const allResults: Array<{ id: string; status: string; error?: string; imageKey?: string }> = [];
+    let ok = 0;
+    let fail = 0;
+
+    for (let i = 0; i < targets.length; i += BATCH_SIZE) {
+      const batch = targets.slice(i, i + BATCH_SIZE);
+      setGenProgress(`Generating ${i + 1}–${Math.min(i + batch.length, targets.length)} of ${targets.length} (${ok} done, ${fail} failed)...`);
+
+      try {
+        const res = await generateGameIcons(project.id, { ids: batch });
+        for (const r of res.results) {
+          allResults.push(r);
+          if (r.status === "generated") ok++;
+          else fail++;
+        }
+      } catch (e) {
+        // Mark entire batch as failed, continue with next batch
+        fail += batch.length;
+        for (const id of batch) {
+          allResults.push({ id, status: "failed", error: (e as Error).message });
+        }
+      }
     }
+
+    setGenProgress(`Done: ${ok} generated, ${fail} failed`);
+    await loadProject(project.id);
+    setGenerating(false);
   }
 
   async function handleBulkStatus(status: GameIconStatus) {
