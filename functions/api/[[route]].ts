@@ -28,6 +28,7 @@ function json(data: unknown, status = 200) {
     status,
     headers: {
       "Content-Type": "application/json",
+      "Cache-Control": "no-store",
       "Access-Control-Allow-Origin": "*",
     },
   });
@@ -901,7 +902,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const now = new Date().toISOString();
 
       if (finalResult.status === "completed" && finalResult.resultUrl) {
-        const key = `game/${id}/${icon.id}.png`;
+        const key = `game/${id}/${icon.id}-${now.replace(/[^0-9]/g, "")}.png`;
         const meta = {
           prompt,
           provider: "replicate",
@@ -971,8 +972,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const iconSpec = project.icons.find((i) => i.id === iconId);
     if (!iconSpec) return err("Icon not found in project", 404);
 
-    // Store image at game/{projectId}/{iconId}.png
-    const key = `game/${projectId}/${iconId}.png`;
+    // Store image with a unique key per version so history entries
+    // each point to their own image instead of all sharing one key.
+    const now = new Date().toISOString();
+    const ts = now.replace(/[^0-9]/g, "");
+    const key = `game/${projectId}/${iconId}-${ts}.png`;
     await env.ASSETS_BUCKET.put(key, body, {
       httpMetadata: { contentType },
       customMetadata: {
@@ -983,7 +987,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     });
 
     // Update icon state
-    const now = new Date().toISOString();
     if (!project.states[iconId]) {
       project.states[iconId] = { specId: iconId, status: "pending", history: [] };
     }
@@ -1035,8 +1038,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const iconSpec = project.icons.find((i) => i.id === iconId);
     if (!iconSpec) return err("Icon not found in project", 404);
 
-    // Copy image to game icon path
-    const destKey = `game/${projectId}/${iconId}.png`;
+    // Copy image with a unique key per version so history works
+    const now = new Date().toISOString();
+    const ts = now.replace(/[^0-9]/g, "");
+    const destKey = `game/${projectId}/${iconId}-${ts}.png`;
     const sourceBody = await sourceImage.arrayBuffer();
     await env.ASSETS_BUCKET.put(destKey, sourceBody, {
       httpMetadata: { contentType: sourceImage.httpMetadata?.contentType ?? "image/png" },
@@ -1049,7 +1054,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     });
 
     // Update icon state
-    const now = new Date().toISOString();
     if (!project.states[iconId]) {
       project.states[iconId] = { specId: iconId, status: "pending", history: [] };
     }
