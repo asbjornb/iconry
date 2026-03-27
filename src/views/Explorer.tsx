@@ -8,6 +8,7 @@ interface Props {
   initialPrompt?: string | null;
   initialModel?: string | null;
   gameIconContext?: { projectId: string; iconId: string } | null;
+  initialInputImageKey?: string | null;
   onPromptConsumed?: () => void;
 }
 
@@ -23,7 +24,7 @@ interface ExplorerResult {
   usedForGameIcon?: boolean;
 }
 
-export function Explorer({ onJobCreated, initialPrompt, initialModel, gameIconContext, onPromptConsumed }: Props) {
+export function Explorer({ onJobCreated, initialPrompt, initialModel, gameIconContext, initialInputImageKey, onPromptConsumed }: Props) {
   const [prompt, setPrompt] = useState(
     "minimal flat icon, game asset, tropical island theme, clean edges, transparent background, a coconut"
   );
@@ -50,6 +51,10 @@ export function Explorer({ onJobCreated, initialPrompt, initialModel, gameIconCo
       setPrompt(initialPrompt);
       if (initialModel) setModel(initialModel);
       if (gameIconContext) setActiveGameIcon(gameIconContext);
+      if (initialInputImageKey) {
+        setInputImageKey(initialInputImageKey);
+        setInputImagePreview(imageUrl(initialInputImageKey));
+      }
       onPromptConsumed?.();
     }
   }, [initialPrompt]);
