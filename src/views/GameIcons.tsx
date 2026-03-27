@@ -451,10 +451,20 @@ function ImportPanel({
   onCancel: () => void;
   error: string;
 }) {
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") onChange(reader.result);
+    };
+    reader.readAsText(file);
+  }
+
   return (
     <div className="gi-import">
       <div className="field">
-        <label>Paste GameProject JSON</label>
+        <label>Paste GameProject JSON or load from file</label>
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -465,8 +475,17 @@ function ImportPanel({
       {error && <div className="error-msg">{error}</div>}
       <div className="batch-controls">
         <button className="primary" onClick={onImport}>Import</button>
+        <label className="file-upload-btn">
+          Load File
+          <input type="file" accept=".json" onChange={handleFile} style={{ display: "none" }} />
+        </label>
         <button onClick={onCancel}>Cancel</button>
       </div>
+      {value && (
+        <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>
+          {value.length.toLocaleString()} characters
+        </div>
+      )}
     </div>
   );
 }
