@@ -262,63 +262,94 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
     setLoading(true);
     setError("");
     try {
-      // Fetch all approved images in parallel
-      const entries: Record<string, Uint8Array> = {};
-      const manifest: Array<{
-        id: string;
-        filename: string;
-        prompt: string;
-        model: string;
-        category: string;
-        object: string;
-        description: string;
-        theme: string;
-        size: number;
-        tags: string[];
-      }> = [];
+      const MAX_ZIP_BYTES = 24 * 1024 * 1024; // 24 MB to leave headroom under 25 MB
 
-      await Promise.all(
+      // Fetch all approved images in parallel
+      type IconEntry = {
+        icon: typeof approved[number];
+        data: Uint8Array;
+        manifest: {
+          id: string;
+          filename: string;
+          prompt: string;
+          model: string;
+          category: string;
+          object: string;
+          description: string;
+          theme: string;
+          size: number;
+          tags: string[];
+        };
+      };
+
+      const allEntries: IconEntry[] = await Promise.all(
         approved.map(async (icon) => {
           const state = project.states[icon.id]!;
           const res = await fetch(gameImageUrl(state.currentImageKey!));
           if (!res.ok) throw new Error(`Failed to fetch image for ${icon.id}`);
           const buf = await res.arrayBuffer();
+          const data = new Uint8Array(buf);
           const filename = `images/${icon.id}.png`;
-          entries[filename] = new Uint8Array(buf);
-
-          manifest.push({
-            id: icon.id,
-            filename,
-            prompt: state.currentPrompt ?? "",
-            model: state.currentModel ?? "",
-            category: icon.category,
-            object: icon.object,
-            description: icon.description,
-            theme: icon.theme,
-            size: icon.size,
-            tags: icon.tags,
-          });
+          return {
+            icon,
+            data,
+            manifest: {
+              id: icon.id,
+              filename,
+              prompt: state.currentPrompt ?? "",
+              model: state.currentModel ?? "",
+              category: icon.category,
+              object: icon.object,
+              description: icon.description,
+              theme: icon.theme,
+              size: icon.size,
+              tags: icon.tags,
+            },
+          };
         })
       );
 
-      // Add manifest JSON
-      entries["manifest.json"] = strToU8(JSON.stringify(manifest, null, 2));
-
-      // Add per-icon prompt files for easy reference
-      for (const item of manifest) {
-        if (item.prompt) {
-          entries[`prompts/${item.id}.txt`] = strToU8(item.prompt);
+      // Partition into chunks that fit under the size limit
+      const chunks: IconEntry[][] = [];
+      let currentChunk: IconEntry[] = [];
+      let currentSize = 0;
+      for (const entry of allEntries) {
+        // Rough estimate: image bytes + prompt text + some overhead
+        const entrySize = entry.data.byteLength + (entry.manifest.prompt.length * 2) + 512;
+        if (currentChunk.length > 0 && currentSize + entrySize > MAX_ZIP_BYTES) {
+          chunks.push(currentChunk);
+          currentChunk = [];
+          currentSize = 0;
         }
+        currentChunk.push(entry);
+        currentSize += entrySize;
       }
+      if (currentChunk.length > 0) chunks.push(currentChunk);
 
-      // Build and download ZIP
-      const zip = zipSync(entries);
-      const blob = new Blob([zip.buffer as ArrayBuffer], { type: "application/zip" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `${project.name}-icons.zip`;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      const multiPart = chunks.length > 1;
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const entries: Record<string, Uint8Array> = {};
+        const manifest = chunk.map((e) => e.manifest);
+
+        for (const e of chunk) {
+          entries[e.manifest.filename] = e.data;
+          if (e.manifest.prompt) {
+            entries[`prompts/${e.manifest.id}.txt`] = strToU8(e.manifest.prompt);
+          }
+        }
+        entries["manifest.json"] = strToU8(JSON.stringify(manifest, null, 2));
+
+        const zip = zipSync(entries);
+        const blob = new Blob([zip.buffer as ArrayBuffer], { type: "application/zip" });
+        const suffix = multiPart ? `-part${i + 1}` : "";
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${project.name}-icons${suffix}.zip`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
     } catch (e) {
       setError(`Download failed: ${(e as Error).message}`);
     } finally {
