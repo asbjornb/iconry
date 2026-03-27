@@ -196,6 +196,38 @@ async function pollReplicate(
   };
 }
 
+// ── Deduplicate legacy history entries ───────────────────────────────
+// Before unique-key versioning, every upload/generate overwrote the
+// same R2 key (game/{project}/{icon}.png).  All history entries that
+// share an imageKey are indistinguishable — collapse them into one,
+// keeping the most recent.
+function deduplicateHistory(
+  history: GameIconHistoryEntry[]
+): GameIconHistoryEntry[] {
+  const seen = new Map<string, number>();
+  // Walk newest→oldest so the first occurrence we keep is the latest.
+  for (let i = history.length - 1; i >= 0; i--) {
+    const key = history[i].imageKey;
+    seen.set(key, (seen.get(key) ?? 0) + 1);
+  }
+
+  // Nothing to dedupe if every key is unique
+  const hasDupes = [...seen.values()].some((c) => c > 1);
+  if (!hasDupes) return history;
+
+  // Keep only the latest entry per imageKey
+  const kept = new Set<string>();
+  const result: GameIconHistoryEntry[] = [];
+  for (let i = history.length - 1; i >= 0; i--) {
+    const key = history[i].imageKey;
+    if (!kept.has(key)) {
+      kept.add(key);
+      result.push(history[i]);
+    }
+  }
+  return result.reverse();
+}
+
 // ── Store image to R2 ───────────────────────────────────────────────
 
 async function storeImage(
@@ -750,7 +782,26 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const id = path.replace("/api/game-projects/", "");
     const data = await env.ASSETS_BUCKET.get(`game-projects/${id}.json`);
     if (!data) return err("Game project not found", 404);
-    return json(JSON.parse(await data.text()));
+    const project = JSON.parse(await data.text()) as GameProject;
+
+    // Clean up legacy duplicate history entries on read
+    let dirty = false;
+    for (const state of Object.values(project.states)) {
+      const cleaned = deduplicateHistory(state.history);
+      if (cleaned.length !== state.history.length) {
+        state.history = cleaned;
+        dirty = true;
+      }
+    }
+    if (dirty) {
+      await env.ASSETS_BUCKET.put(
+        `game-projects/${id}.json`,
+        JSON.stringify(project),
+        { httpMetadata: { contentType: "application/json" } }
+      );
+    }
+
+    return json(project);
   }
 
   // ── PUT /api/game-projects/:id — create or update (sync spec) ───
