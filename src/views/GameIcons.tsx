@@ -248,25 +248,16 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
     }
   }
 
-  async function handleDownloadApproved() {
-    if (!project) return;
-    const approved = project.icons.filter((i) => {
-      const s = project.states[i.id];
-      return s?.status === "approved" && s.currentImageKey;
-    });
-    if (approved.length === 0) {
-      setError("No approved icons to download");
-      return;
-    }
+  async function downloadIcons(icons: GameIconSpec[], fileLabel: string) {
+    if (!project || icons.length === 0) return;
 
     setLoading(true);
     setError("");
     try {
       const MAX_ZIP_BYTES = 24 * 1024 * 1024; // 24 MB to leave headroom under 25 MB
 
-      // Fetch all approved images in parallel
       type IconEntry = {
-        icon: typeof approved[number];
+        icon: GameIconSpec;
         data: Uint8Array;
         manifest: {
           id: string;
@@ -283,7 +274,7 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
       };
 
       const allEntries: IconEntry[] = await Promise.all(
-        approved.map(async (icon) => {
+        icons.map(async (icon) => {
           const state = project.states[icon.id]!;
           const res = await fetch(gameImageUrl(state.currentImageKey!));
           if (!res.ok) throw new Error(`Failed to fetch image for ${icon.id}`);
@@ -314,7 +305,6 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
       let currentChunk: IconEntry[] = [];
       let currentSize = 0;
       for (const entry of allEntries) {
-        // Rough estimate: image bytes + prompt text + some overhead
         const entrySize = entry.data.byteLength + (entry.manifest.prompt.length * 2) + 512;
         if (currentChunk.length > 0 && currentSize + entrySize > MAX_ZIP_BYTES) {
           chunks.push(currentChunk);
@@ -346,7 +336,7 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
         const suffix = multiPart ? `-part${i + 1}` : "";
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `${project.name}-icons${suffix}.zip`;
+        a.download = `${project.name}-${fileLabel}${suffix}.zip`;
         a.click();
         URL.revokeObjectURL(a.href);
       }
@@ -355,6 +345,31 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleDownloadApproved() {
+    if (!project) return;
+    const approved = project.icons.filter((i) => {
+      const s = project.states[i.id];
+      return s?.status === "approved" && s.currentImageKey;
+    });
+    if (approved.length === 0) {
+      setError("No approved icons to download");
+      return;
+    }
+    await downloadIcons(approved, "icons");
+  }
+
+  async function handleDownloadSelected() {
+    if (!project || selected.size === 0) return;
+    const withImages = project.icons.filter((i) => {
+      return selected.has(i.id) && project.states[i.id]?.currentImageKey;
+    });
+    if (withImages.length === 0) {
+      setError("No selected icons have images to download");
+      return;
+    }
+    await downloadIcons(withImages, "selected");
   }
 
   const detail = detailIcon ? project?.icons.find((i) => i.id === detailIcon) : null;
@@ -493,6 +508,7 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
             </button>
             <button onClick={() => handleBulkStatus("approved")}>approve</button>
             <button onClick={() => handleBulkStatus("rejected")}>reject</button>
+            <button onClick={handleDownloadSelected}>download ({selected.size})</button>
           </>
         )}
         {genProgress && <span className="gi-progress">{genProgress}</span>}
