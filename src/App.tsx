@@ -1,7 +1,5 @@
 import { useState, useEffect } from "react";
 import { Explorer } from "./views/Explorer";
-import { BatchEditor } from "./views/BatchEditor";
-import { Projects } from "./views/Projects";
 import { Review } from "./views/Review";
 import { Saved } from "./views/Saved";
 import { GameIcons } from "./views/GameIcons";
@@ -9,8 +7,8 @@ import { Settings } from "./components/Settings";
 import { listJobs } from "./lib/api";
 import type { GenerationJob } from "@shared/types";
 
-type Tab = "explore" | "game" | "projects" | "batch" | "review" | "saved" | "settings";
-const TABS: Tab[] = ["explore", "game", "projects", "batch", "review", "saved", "settings"];
+type Tab = "explore" | "game" | "review" | "saved" | "settings";
+const TABS: Tab[] = ["explore", "game", "review", "saved", "settings"];
 
 function getTabFromHash(): Tab {
   const hash = window.location.hash.slice(1);
@@ -82,8 +80,6 @@ export function App() {
 
       {tab === "explore" && <Explorer onJobCreated={(j) => addJobs([j])} initialPrompt={explorePrompt} initialModel={exploreModel} gameIconContext={exploreGameIconContext} initialInputImageKey={exploreInputImageKey} onPromptConsumed={() => { setExplorePrompt(null); setExploreModel(null); setExploreInputImageKey(null); }} />}
       {tab === "game" && <GameIcons onSendToExplore={sendToExplore} />}
-      {tab === "projects" && <Projects onSendToExplore={sendToExplore} />}
-      {tab === "batch" && <BatchEditor onJobsCreated={addJobs} />}
       {tab === "review" && <Review jobs={jobs} onUpdateJob={updateJob} onDeleteJob={deleteJob} />}
       {tab === "saved" && <Saved onSendToExplore={sendToExplore} />}
       {tab === "settings" && <Settings />}

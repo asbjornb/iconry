@@ -53,6 +53,11 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
   const [showImport, setShowImport] = useState(false);
   const [importJson, setImportJson] = useState("");
 
+  // New project mode
+  const [showNew, setShowNew] = useState(false);
+  const [newId, setNewId] = useState("");
+  const [newName, setNewName] = useState("");
+
   useEffect(() => {
     loadProjects();
   }, []);
@@ -248,6 +253,53 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
     }
   }
 
+  async function handleCreateNew() {
+    setError("");
+    const id = newId.trim();
+    const name = newName.trim();
+    if (!id || !name) {
+      setError("Need an id and a name");
+      return;
+    }
+    if (!/^[a-z0-9][a-z0-9-_]*$/i.test(id)) {
+      setError("id must be alphanumeric (dashes/underscores allowed)");
+      return;
+    }
+    if (projects.some((p) => p.id === id)) {
+      setError(`Project "${id}" already exists`);
+      return;
+    }
+    const now = new Date().toISOString();
+    const fresh: GameProject = {
+      id,
+      name,
+      styleGuide: {
+        approach: "",
+        resolution: "",
+        paletteConstraints: [],
+        composition: [],
+        consistency: [],
+        phaseTinting: {},
+      },
+      icons: [],
+      states: {},
+      defaultModel: "black-forest-labs/flux-schnell",
+      defaultSize: "256x256",
+      createdAt: now,
+      updatedAt: now,
+    };
+    try {
+      await saveGameProject(fresh);
+      setShowNew(false);
+      setNewId("");
+      setNewName("");
+      await loadProjects();
+      await loadProject(id);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
   async function downloadIcons(icons: GameIconSpec[], fileLabel: string) {
     if (!project || icons.length === 0) return;
 
@@ -382,12 +434,28 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
         <div className="gi-empty">
           <p>No game projects yet.</p>
           <p style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 8 }}>
-            Import a project spec (JSON) to start tracking icons.
+            Create an empty project, or import a full spec (JSON).
           </p>
-          <button onClick={() => setShowImport(true)} style={{ marginTop: 12 }}>
-            Import Project
-          </button>
+          <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 12 }}>
+            <button onClick={() => { setShowNew(true); setShowImport(false); }}>
+              New Project
+            </button>
+            <button onClick={() => { setShowImport(true); setShowNew(false); }}>
+              Import Project
+            </button>
+          </div>
         </div>
+        {showNew && (
+          <NewProjectPanel
+            id={newId}
+            name={newName}
+            onIdChange={setNewId}
+            onNameChange={setNewName}
+            onCreate={handleCreateNew}
+            onCancel={() => { setShowNew(false); setError(""); }}
+            error={error}
+          />
+        )}
         {showImport && (
           <ImportPanel
             value={importJson}
@@ -411,23 +479,22 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
       {/* Header: project picker + summary */}
       <div className="gi-header">
         <div className="gi-header-top">
-          {projects.length > 1 ? (
-            <select
-              value={project?.id}
-              onChange={(e) => loadProject(e.target.value)}
-              style={{ width: "auto", flex: "0 0 auto" }}
-            >
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <strong>{project?.name}</strong>
-          )}
+          <select
+            value={project?.id}
+            onChange={(e) => loadProject(e.target.value)}
+            style={{ width: "auto", flex: "0 0 auto" }}
+          >
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
           <div className="gi-header-actions">
-            <button onClick={() => setShowImport(!showImport)}>
+            <button onClick={() => { setShowNew(!showNew); setShowImport(false); setError(""); }}>
+              {showNew ? "cancel" : "+ new"}
+            </button>
+            <button onClick={() => { setShowImport(!showImport); setShowNew(false); setError(""); }}>
               {showImport ? "cancel" : "import"}
             </button>
             <button onClick={handleDownloadApproved} className="primary">
@@ -457,6 +524,18 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
           )}
         </div>
       </div>
+
+      {showNew && (
+        <NewProjectPanel
+          id={newId}
+          name={newName}
+          onIdChange={setNewId}
+          onNameChange={setNewName}
+          onCreate={handleCreateNew}
+          onCancel={() => { setShowNew(false); setError(""); }}
+          error={error}
+        />
+      )}
 
       {showImport && (
         <ImportPanel
@@ -566,7 +645,115 @@ export function GameIcons({ onSendToExplore }: GameIconsProps) {
   );
 }
 
+// ── New Project Panel ────────────────────────────────────────────
+
+function NewProjectPanel({
+  id,
+  name,
+  onIdChange,
+  onNameChange,
+  onCreate,
+  onCancel,
+  error,
+}: {
+  id: string;
+  name: string;
+  onIdChange: (v: string) => void;
+  onNameChange: (v: string) => void;
+  onCreate: () => void;
+  onCancel: () => void;
+  error: string;
+}) {
+  return (
+    <div className="gi-import">
+      <div className="field">
+        <label>Project id (slug, used as filename)</label>
+        <input
+          type="text"
+          value={id}
+          onChange={(e) => onIdChange(e.target.value)}
+          placeholder="my-new-game"
+        />
+      </div>
+      <div className="field">
+        <label>Display name</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => onNameChange(e.target.value)}
+          placeholder="My New Game"
+        />
+      </div>
+      {error && <div className="error-msg">{error}</div>}
+      <div className="batch-controls">
+        <button className="primary" onClick={onCreate}>Create</button>
+        <button onClick={onCancel}>Cancel</button>
+      </div>
+      <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>
+        Creates an empty project. Add icons later via import.
+      </div>
+    </div>
+  );
+}
+
 // ── Import Panel ─────────────────────────────────────────────────
+
+const EXAMPLE_GAME_PROJECT: GameProject = {
+  id: "my-game",
+  name: "My Game",
+  styleGuide: {
+    approach: "flat vector icons, crisp edges, transparent background",
+    resolution: "256x256",
+    paletteConstraints: ["limited palette (max 6 colors per icon)"],
+    composition: ["centered subject", "consistent light from top-left"],
+    consistency: ["uniform line weight across all icons"],
+    phaseTinting: { day: "warm tones", night: "cool blue tones" },
+  },
+  icons: [
+    {
+      id: "sword",
+      object: "a short steel sword",
+      description: "diagonal, hilt at bottom-left, blade pointing top-right",
+      use: "weapon inventory slot",
+      theme: "day",
+      category: "weapons",
+      chain: "blades",
+      chainRole: "base",
+      size: 256,
+      tags: ["melee", "starter"],
+    },
+    {
+      id: "dagger",
+      object: "a small steel dagger",
+      description: "similar silhouette to sword but shorter blade",
+      use: "weapon inventory slot",
+      theme: "day",
+      category: "weapons",
+      chain: "blades",
+      chainRole: "derived",
+      chainNote: "shorter blade, same hilt style as sword",
+      size: 256,
+      tags: ["melee"],
+    },
+    {
+      id: "potion_red",
+      object: "a red healing potion",
+      description: "round flask with cork stopper, red liquid inside",
+      use: "consumable inventory slot",
+      theme: "day",
+      category: "consumables",
+      chain: null,
+      chainRole: "standalone",
+      size: 256,
+      tags: ["consumable", "healing"],
+    },
+  ],
+  states: {},
+  defaultModel: "black-forest-labs/flux-schnell",
+  defaultSize: "256x256",
+  createdAt: "",
+  updatedAt: "",
+};
 
 function ImportPanel({
   value,
@@ -581,6 +768,8 @@ function ImportPanel({
   onCancel: () => void;
   error: string;
 }) {
+  const [showSpec, setShowSpec] = useState(false);
+
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -589,6 +778,10 @@ function ImportPanel({
       if (typeof reader.result === "string") onChange(reader.result);
     };
     reader.readAsText(file);
+  }
+
+  function loadExample() {
+    onChange(JSON.stringify(EXAMPLE_GAME_PROJECT, null, 2));
   }
 
   return (
@@ -609,11 +802,42 @@ function ImportPanel({
           Load File
           <input type="file" accept=".json" onChange={handleFile} style={{ display: "none" }} />
         </label>
+        <button onClick={loadExample}>Load Example</button>
+        <button onClick={() => setShowSpec((s) => !s)}>
+          {showSpec ? "Hide Spec" : "Show Spec"}
+        </button>
         <button onClick={onCancel}>Cancel</button>
       </div>
       {value && (
         <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>
           {value.length.toLocaleString()} characters
+        </div>
+      )}
+      {showSpec && (
+        <div style={{ marginTop: 12, padding: 12, background: "var(--surface)", borderRadius: 4, fontSize: 12 }}>
+          <strong>GameProject fields</strong>
+          <ul style={{ marginTop: 6, paddingLeft: 18, lineHeight: 1.6 }}>
+            <li><code>id</code> (string, slug): unique project id, used as filename</li>
+            <li><code>name</code> (string): display name</li>
+            <li><code>defaultModel</code> (string): e.g. <code>black-forest-labs/flux-schnell</code></li>
+            <li><code>defaultSize</code> (string): e.g. <code>256x256</code></li>
+            <li><code>styleGuide</code>: approach, resolution, paletteConstraints[], composition[], consistency[], phaseTinting (object)</li>
+            <li><code>icons[]</code>: each has
+              <ul style={{ paddingLeft: 16 }}>
+                <li><code>id</code>, <code>object</code>, <code>description</code>, <code>use</code>, <code>theme</code>, <code>category</code>: text fields</li>
+                <li><code>chain</code>: string or null — icons sharing a chain look consistent</li>
+                <li><code>chainRole</code>: <code>"base"</code> | <code>"derived"</code> | <code>"standalone"</code></li>
+                <li><code>chainNote</code> (optional): how a derived icon differs from its base</li>
+                <li><code>size</code> (number): e.g. 256</li>
+                <li><code>tags</code> (string[])</li>
+              </ul>
+            </li>
+            <li><code>states</code>: leave as <code>{"{}"}</code> — the server fills this with per-icon generation state</li>
+            <li><code>createdAt</code>, <code>updatedAt</code>: ISO timestamps — server will set these if empty</li>
+          </ul>
+          <div style={{ marginTop: 8, color: "var(--text-dim)" }}>
+            Re-importing a project with the same <code>id</code> merges icons and preserves existing generation history.
+          </div>
         </div>
       )}
     </div>
